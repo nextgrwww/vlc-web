@@ -35,6 +35,7 @@
             border-radius: 8px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.5);
             overflow: hidden;
+            position: relative;
         }
 
         /* Main Area (Video + Sidebar) */
@@ -51,6 +52,7 @@
             justify-content: center;
             align-items: center;
             position: relative;
+            background-color: #000;
         }
 
         video {
@@ -58,6 +60,23 @@
             height: 100%;
             background-color: #000;
             outline: none;
+            object-fit: contain;
+        }
+
+        /* OSD (On Screen Display) */
+        #osd-text {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            color: white;
+            font-size: 24px;
+            font-weight: bold;
+            font-family: Arial, sans-serif;
+            text-shadow: 2px 2px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: 50;
+            pointer-events: none;
         }
 
         /* OS X Mavericks Styled Playlist Sidebar */
@@ -179,7 +198,34 @@
             flex-direction: column;
             padding: 8px 12px 12px 12px;
             box-shadow: 0 1px 0 rgba(255,255,255,0.8) inset;
-            z-index: 10;
+            z-index: 100;
+        }
+
+        /* Theater Mode & Fullscreen Overrides */
+        #app-window.theater-mode #playlist-sidebar,
+        #app-window:fullscreen #playlist-sidebar {
+            display: none !important;
+        }
+
+        #app-window.theater-mode #controls-area,
+        #app-window:fullscreen #controls-area {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background-image: linear-gradient(to bottom, rgba(237,237,237,0.95) 0%, rgba(212,212,212,0.95) 100%);
+            transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out;
+        }
+
+        /* Auto-hide controls */
+        #app-window.idle {
+            cursor: none;
+        }
+
+        #app-window.idle #controls-area {
+            opacity: 0;
+            transform: translateY(100%);
+            pointer-events: none;
         }
 
         /* Timeline Slider */
@@ -321,6 +367,10 @@
             border-top-color: #000;
             box-shadow: 0 1px 0 rgba(255,255,255,0.1) inset;
         }
+        body.dark-mode #app-window.theater-mode #controls-area,
+        body.dark-mode #app-window:fullscreen #controls-area {
+            background-image: linear-gradient(to bottom, rgba(68,68,68,0.95) 0%, rgba(34,34,34,0.95) 100%);
+        }
         body.dark-mode .time-display { color: #bbb; text-shadow: 0 -1px 0 rgba(0,0,0,0.8); }
         body.dark-mode #now-playing-text { color: #ddd; text-shadow: 0 -1px 0 rgba(0,0,0,0.8); }
         body.dark-mode input[type=range]::-webkit-slider-runnable-track {
@@ -340,6 +390,7 @@
     <div id="main-area">
         <div id="video-container" title="Double click to toggle fullscreen">
             <video id="player" playsinline></video>
+            <div id="osd-text"></div>
         </div>
         
         <div id="playlist-sidebar">
@@ -366,7 +417,7 @@
         </div>
         
         <div class="controls-row">
-            <!-- Left Controls: Playback -->
+            <!-- Left Controls: Playback & View -->
             <div class="control-group">
                 <div class="btn-group">
                     <button class="mac-btn" id="btn-play" title="Play/Pause (Space)">
@@ -382,9 +433,15 @@
                         <svg width="14" height="14" viewBox="0 0 16 16"><path d="M12 2v12h-2V9l-7 5V2l7 5V2h2z"/></svg>
                     </button>
                 </div>
-                <button class="mac-btn" id="btn-fullscreen" title="Fullscreen (F)">
-                    <svg width="14" height="14" viewBox="0 0 16 16"><path d="M2 2v4h2V4h2V2H2zm10 0v2h2v2h2V2h-4zM2 14h4v-2H4v-2H2v4zm10 0h4v-4h-2v2h-2v2z"/></svg>
-                </button>
+                
+                <div class="btn-group" style="margin-left: 8px;">
+                    <button class="mac-btn" id="btn-theater" title="Theater Mode (T)">
+                        <svg width="14" height="14" viewBox="0 0 16 16"><path d="M1 3h14v10H1V3zm2 2v6h10V5H3z"/></svg>
+                    </button>
+                    <button class="mac-btn" id="btn-fullscreen" title="Fullscreen (F)">
+                        <svg width="14" height="14" viewBox="0 0 16 16"><path d="M2 2v4h2V4h2V2H2zm10 0v2h2v2h2V2h-4zM2 14h4v-2H4v-2H2v4zm10 0h4v-4h-2v2h-2v2z"/></svg>
+                    </button>
+                </div>
             </div>
 
             <!-- Center Controls: Now Playing -->
@@ -421,10 +478,19 @@
     let currentIndex = -1;
     let isLooping = false;
     let objectUrls = [];
+    let idleTimer;
+    let osdTimer;
+
+    // Aspect Ratios Configuration
+    const aspectRatios = ['Default', '16:9', '4:3', '1:1', '16:10', '2.21:1', '2.35:1', '2.39:1', '5:4'];
+    let currentArIndex = 0;
 
     // --- DOM Elements ---
+    const appWindow = document.getElementById('app-window');
     const player = document.getElementById('player');
     const videoContainer = document.getElementById('video-container');
+    const controlsArea = document.getElementById('controls-area');
+    const osdText = document.getElementById('osd-text');
     const fileInput = document.getElementById('file-input');
     const playlistItemsContainer = document.getElementById('playlist-items');
     const playlistSidebar = document.getElementById('playlist-sidebar');
@@ -440,6 +506,7 @@
     const btnStop = document.getElementById('btn-stop');
     const btnNext = document.getElementById('btn-next');
     const btnFullscreen = document.getElementById('btn-fullscreen');
+    const btnTheater = document.getElementById('btn-theater');
     const btnPlaylist = document.getElementById('btn-playlist');
     const btnDarkMode = document.getElementById('btn-dark-mode');
     const btnLoop = document.getElementById('btn-loop');
@@ -459,6 +526,13 @@
         const m = Math.floor(seconds / 60);
         const s = Math.floor(seconds % 60);
         return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    }
+
+    function showOSD(text) {
+        osdText.textContent = text;
+        osdText.style.opacity = 1;
+        clearTimeout(osdTimer);
+        osdTimer = setTimeout(() => osdText.style.opacity = 0, 2000);
     }
 
     function updatePlaylistUI() {
@@ -513,8 +587,10 @@
         if (playlist.length === 0) return;
         if (player.paused) {
             player.play();
+            showOSD("Play");
         } else {
             player.pause();
+            showOSD("Pause");
         }
     }
 
@@ -522,6 +598,7 @@
         player.pause();
         player.currentTime = 0;
         btnPlay.querySelector('svg').innerHTML = iconPlay;
+        showOSD("Stopped");
     }
 
     function playNext() {
@@ -544,6 +621,7 @@
     function toggleMute() {
         player.muted = !player.muted;
         updateVolumeUI();
+        showOSD(player.muted ? "Muted" : "Unmuted");
     }
 
     function updateVolumeUI() {
@@ -557,11 +635,74 @@
 
     function toggleFullscreen() {
         if (!document.fullscreenElement) {
-            videoContainer.requestFullscreen().catch(err => console.log(err));
+            appWindow.requestFullscreen().catch(err => console.log(err));
         } else {
             document.exitFullscreen();
         }
     }
+
+    function toggleTheaterMode() {
+        if (document.fullscreenElement) return; // Ignore if already fullscreen
+        appWindow.classList.toggle('theater-mode');
+        btnTheater.classList.toggle('active-state');
+        showOSD(appWindow.classList.contains('theater-mode') ? "Theater Mode On" : "Theater Mode Off");
+    }
+
+    function toggleAspectRatio() {
+        currentArIndex = (currentArIndex + 1) % aspectRatios.length;
+        const ar = aspectRatios[currentArIndex];
+        
+        if (ar === 'Default') {
+            player.style.aspectRatio = '';
+            player.style.objectFit = 'contain';
+        } else {
+            // VLC strictly forces the video frame to stretch to this ratio
+            player.style.aspectRatio = ar.replace(':', '/');
+            player.style.objectFit = 'fill';
+        }
+        showOSD(`Aspect Ratio: ${ar}`);
+    }
+
+    function changePlaybackSpeed(delta) {
+        player.playbackRate = Math.max(0.25, Math.min(4.0, player.playbackRate + delta));
+        showOSD(`Speed: ${player.playbackRate.toFixed(2)}x`);
+    }
+
+    // --- Idle Cursor / Controls Management ---
+    function resetIdleTimer() {
+        appWindow.classList.remove('idle');
+        clearTimeout(idleTimer);
+
+        // Only auto-hide controls in theater or fullscreen mode
+        if (document.fullscreenElement || appWindow.classList.contains('theater-mode')) {
+            idleTimer = setTimeout(() => {
+                appWindow.classList.add('idle');
+            }, 2000); // 2 seconds idle timeout
+        }
+    }
+
+    // Prevent hiding while hovering directly over controls
+    controlsArea.addEventListener('mouseenter', () => {
+        clearTimeout(idleTimer);
+        appWindow.classList.remove('idle');
+    });
+    
+    controlsArea.addEventListener('mouseleave', resetIdleTimer);
+    window.addEventListener('mousemove', resetIdleTimer);
+
+    // Fullscreen change handler
+    document.addEventListener('fullscreenchange', () => {
+        if (document.fullscreenElement) {
+            btnFullscreen.classList.add('active-state');
+            appWindow.classList.remove('theater-mode'); // Disable theater mode if forcing fullscreen
+            btnTheater.classList.remove('active-state');
+            resetIdleTimer();
+        } else {
+            btnFullscreen.classList.remove('active-state');
+            clearTimeout(idleTimer);
+            appWindow.classList.remove('idle');
+        }
+    });
 
     // --- Event Listeners ---
 
@@ -613,6 +754,7 @@
         player.volume = volumeSlider.value;
         player.muted = false;
         updateVolumeUI();
+        showOSD(`Volume: ${Math.round(player.volume * 100)}%`);
     });
 
     // Buttons
@@ -622,6 +764,7 @@
     btnPrev.onclick = playPrev;
     btnMute.onclick = toggleMute;
     btnFullscreen.onclick = toggleFullscreen;
+    btnTheater.onclick = toggleTheaterMode;
     
     // Video Area Double Click to Fullscreen
     videoContainer.ondblclick = toggleFullscreen;
@@ -644,7 +787,7 @@
 
     // Keyboard Shortcuts (VLC Mappings)
     window.addEventListener('keydown', (e) => {
-        // Prevent shortcuts if interacting with input fields (though we only have file/range here)
+        // Prevent shortcuts if interacting with input fields
         if (e.target.tagName.toLowerCase() === 'input' && e.target.type !== 'range') return;
 
         switch(e.key.toLowerCase()) {
@@ -662,28 +805,49 @@
                 playPrev();
                 break;
             case 'f':
+                e.preventDefault();
                 toggleFullscreen();
+                break;
+            case 't':
+                e.preventDefault();
+                toggleTheaterMode();
+                break;
+            case 'a':
+                e.preventDefault();
+                toggleAspectRatio();
                 break;
             case 'm':
                 toggleMute();
                 break;
+            case ']':
+                e.preventDefault();
+                changePlaybackSpeed(0.25);
+                break;
+            case '[':
+                e.preventDefault();
+                changePlaybackSpeed(-0.25);
+                break;
             case 'arrowright':
                 e.preventDefault();
                 player.currentTime = Math.min(player.currentTime + 10, player.duration);
+                showOSD(`+10s`);
                 break;
             case 'arrowleft':
                 e.preventDefault();
                 player.currentTime = Math.max(player.currentTime - 10, 0);
+                showOSD(`-10s`);
                 break;
             case 'arrowup':
                 e.preventDefault();
                 player.volume = Math.min(player.volume + 0.05, 1);
                 updateVolumeUI();
+                showOSD(`Volume: ${Math.round(player.volume * 100)}%`);
                 break;
             case 'arrowdown':
                 e.preventDefault();
                 player.volume = Math.max(player.volume - 0.05, 0);
                 updateVolumeUI();
+                showOSD(`Volume: ${Math.round(player.volume * 100)}%`);
                 break;
         }
     });
