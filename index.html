@@ -14,6 +14,11 @@
             padding: 0;
             user-select: none;
         }
+        
+        /* Remove default browser focus outlines globally */
+        *:focus, *:focus-visible {
+            outline: none !important;
+        }
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Lucida Grande", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -32,8 +37,6 @@
             display: flex;
             flex-direction: column;
             background-color: #ececec;
-            /* GTK4 rounded corners when not fully maximized, but for web we fill screen. 
-               Adding slight border radius if viewed in a smaller iframe */
             border-radius: 8px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.5);
             overflow: hidden;
@@ -65,7 +68,6 @@
             max-width: 100%;
             max-height: 100%;
             background-color: transparent;
-            outline: none;
             object-fit: contain;
             transition: max-width 0.1s, max-height 0.1s;
         }
@@ -383,8 +385,6 @@
             background: transparent;
             cursor: pointer;
         }
-        
-        input[type=range]:focus { outline: none; }
 
         /* Mavericks Slider Track */
         input[type=range]::-webkit-slider-runnable-track {
@@ -704,7 +704,7 @@
                 <div id="now-playing-text">Lume Media Player</div>
             </div>
 
-            <!-- Right Controls: Playlist, Subtitles, Loop, Vol, Actions -->
+            <!-- Right Controls: Subtitles/Tracks, Playlist, Actions, Vol -->
             <div class="control-group">
                 <button class="mac-btn" id="btn-dark-mode" title="Toggle Dark Mode" style="margin-right: 8px;">
                     <svg width="14" height="14" viewBox="0 0 16 16"><path d="M6 .278a.768.768 0 0 1 .08.858 7.208 7.208 0 0 0-.878 3.46c0 4.021 3.278 7.277 7.318 7.277.527 0 1.04-.055 1.533-.16a.787.787 0 0 1 .81.316.733.733 0 0 1-.031.893A8.349 8.349 0 0 1 8.344 16C3.734 16 0 12.286 0 7.71 0 4.266 2.114 1.312 5.124.06A.752.752 0 0 1 6 .278z"/></svg>
@@ -712,8 +712,14 @@
                 
                 <input type="file" id="subtitle-input" accept=".srt,.vtt" class="hidden">
                 <div class="btn-group">
-                    <button class="mac-btn" id="btn-subtitle" title="Load Subtitle File">
+                    <button class="mac-btn" id="btn-load-subtitle" title="Load Subtitle File">
                         <svg width="14" height="14" viewBox="0 0 16 16"><path d="M2 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2H2zm2.5 4.5H3v1h1.5a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5H2a.5.5 0 0 1-.5-.5v-3a.5.5 0 0 1 .5-.5h2.5a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5zm5 0H8v1h1.5a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5H7a.5.5 0 0 1-.5-.5v-3a.5.5 0 0 1 .5-.5h2.5a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5z"/></svg>
+                    </button>
+                    <button class="mac-btn" id="btn-sub-track" title="Cycle Subtitle Track">
+                        <svg width="14" height="14" viewBox="0 0 16 16"><path d="M3 4h10a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zm1 2v4h2V6H4v2zm4 0v4h2V6H8v2z"/></svg>
+                    </button>
+                    <button class="mac-btn" id="btn-audio-track" title="Cycle Audio Track">
+                        <svg width="14" height="14" viewBox="0 0 16 16"><path d="M11.5 2v7.5a2.5 2.5 0 1 1-1-2.3v-4.2H14V2h-2.5z"/></svg>
                     </button>
                     <button class="mac-btn" id="btn-playlist" title="Toggle Playlist">
                         <svg width="14" height="14" viewBox="0 0 16 16"><path d="M2 4h12v2H2V4zm0 4h12v2H2V8zm0 4h8v2H2v-2z"/></svg>
@@ -782,7 +788,9 @@
     const btnFullscreen = document.getElementById('btn-fullscreen');
     const btnTheater = document.getElementById('btn-theater');
     const btnPlaylist = document.getElementById('btn-playlist');
-    const btnSubtitle = document.getElementById('btn-subtitle');
+    const btnLoadSubtitle = document.getElementById('btn-load-subtitle');
+    const btnSubTrack = document.getElementById('btn-sub-track');
+    const btnAudioTrack = document.getElementById('btn-audio-track');
     const btnDarkMode = document.getElementById('btn-dark-mode');
     const btnLoop = document.getElementById('btn-loop');
     const btnMute = document.getElementById('btn-mute');
@@ -981,7 +989,7 @@
         currentArIndex = 0;
         currentCropIndex = 0;
         currentZoomIndex = 0;
-        applyVideoTransforms('default', 0);
+        applyVideoTransforms('default');
 
         player.play().catch(e => console.log("Playback prevented:", e));
     }
@@ -1052,73 +1060,72 @@
     }
 
     // --- Aspect Ratio, Crop & Zoom Engine ---
-    
-    function applyVideoTransforms(mode, ratioIndex) {
-        if (mode !== 'zoom') {
-            currentZoomIndex = 0; // Reset Zoom state if AR/Crop is manipulated
+    // Safely layers overlapping transformations simultaneously 
+    function applyVideoTransforms(triggerSource) {
+        const ar = aspectRatios[currentArIndex];
+        const crop = aspectRatios[currentCropIndex];
+        const zoom = zoomModes[currentZoomIndex];
+
+        let objFit = 'contain';
+        let aspRatio = 'auto';
+
+        // 1. Apply Stretch Aspect Ratio
+        if (ar !== 'Default') {
+            aspRatio = ar.replace(':', '/');
+            objFit = 'fill'; 
         }
 
-        if (mode === 'zoom') {
-            const zMode = zoomModes[ratioIndex];
+        // 2. Apply Crop (Overrides stretch to ensure visual cover)
+        if (crop !== 'Default') {
+            aspRatio = crop.replace(':', '/');
+            objFit = 'cover'; 
+        }
+
+        // 3. Apply Zoom Scale (Manages external container fit)
+        if (zoom === 'Fill Screen') {
+            player.style.width = '100vw';
+            player.style.height = '100vh';
+            player.style.maxWidth = '100vw';
+            player.style.maxHeight = '100vh';
+            objFit = 'cover';
+        } else if (zoom === 'Original Size') {
+            player.style.width = 'auto';
+            player.style.height = 'auto';
+            player.style.maxWidth = 'none';
+            player.style.maxHeight = 'none';
+            objFit = 'none';
+        } else {
+            // Fit Screen
+            player.style.width = '100%';
+            player.style.height = '100%';
             player.style.maxWidth = '100%';
             player.style.maxHeight = '100%';
-            
-            if (zMode === 'Fit Screen') {
-                player.style.objectFit = 'contain';
-            } else if (zMode === 'Fill Screen') {
-                player.style.objectFit = 'cover';
-            } else if (zMode === 'Original Size') {
-                player.style.objectFit = 'none';
-            }
-            showOSD(`Zoom: ${zMode}`);
-            return;
         }
 
-        const ar = aspectRatios[ratioIndex];
-        
-        if (ar === 'Default') {
-            player.style.maxWidth = '100%';
-            player.style.maxHeight = '100%';
-            player.style.objectFit = 'contain';
-            if (mode !== 'default') showOSD(mode === 'aspect' ? 'Aspect Ratio: Default' : 'Crop: Default');
-            return;
-        }
+        player.style.objectFit = objFit;
+        player.style.aspectRatio = aspRatio;
 
-        const [w, h] = ar.split(':');
-        // By setting the max bounds to exactly the ratio matching the window, and width/height to 100%,
-        // we create a perfectly letterboxed box for the video to either fill (stretch) or cover (crop).
-        player.style.maxWidth = `calc(100vh * (${w} / ${h}))`;
-        player.style.maxHeight = `calc(100vw * (${h} / ${w}))`;
-        
-        if (mode === 'aspect') {
-            player.style.objectFit = 'fill'; // Stretch internal video to the new bounds
-            showOSD(`Aspect Ratio: ${ar}`);
-        } else if (mode === 'crop') {
-            player.style.objectFit = 'cover'; // Zoom internal video to fill bounds (cropping overflow)
-            showOSD(`Crop: ${ar}`);
-        }
+        if (triggerSource === 'aspect') showOSD(`Aspect Ratio: ${ar}`);
+        else if (triggerSource === 'crop') showOSD(`Crop: ${crop}`);
+        else if (triggerSource === 'zoom') showOSD(`Zoom: ${zoom}`);
     }
 
     function toggleAspectRatio() {
         currentArIndex = (currentArIndex + 1) % aspectRatios.length;
-        currentCropIndex = 0; // Reset crop when changing AR
-        applyVideoTransforms('aspect', currentArIndex);
+        applyVideoTransforms('aspect');
     }
 
     function toggleCrop() {
         currentCropIndex = (currentCropIndex + 1) % aspectRatios.length;
-        currentArIndex = 0; // Reset AR when changing Crop
-        applyVideoTransforms('crop', currentCropIndex);
+        applyVideoTransforms('crop');
     }
 
     function toggleZoom() {
         currentZoomIndex = (currentZoomIndex + 1) % zoomModes.length;
-        currentArIndex = 0; // Reset AR
-        currentCropIndex = 0; // Reset Crop
-        applyVideoTransforms('zoom', currentZoomIndex);
+        applyVideoTransforms('zoom');
     }
 
-    // --- Subtitles Engine ---
+    // --- Subtitle & Audio Track Selectors ---
     
     function srtToVtt(srtContent) {
         let vtt = 'WEBVTT\n\n';
@@ -1171,6 +1178,52 @@
             subtitleInput.value = '';
         };
         reader.readAsText(file);
+    });
+
+    btnSubTrack.addEventListener('click', () => {
+        const tracks = player.textTracks;
+        if (!tracks || tracks.length === 0) {
+            showOSD("No Subtitles Available");
+            return;
+        }
+
+        let currentlyShowingIndex = -1;
+        for (let i = 0; i < tracks.length; i++) {
+            if (tracks[i].mode === 'showing') {
+                currentlyShowingIndex = i;
+                tracks[i].mode = 'hidden';
+                break;
+            }
+        }
+
+        let nextIndex = currentlyShowingIndex + 1;
+        if (nextIndex >= tracks.length) {
+            showOSD("Subtitles Disabled");
+        } else {
+            tracks[nextIndex].mode = 'showing';
+            showOSD(`Subtitle Track: ${tracks[nextIndex].label || (nextIndex + 1)}`);
+        }
+    });
+
+    btnAudioTrack.addEventListener('click', () => {
+        const tracks = player.audioTracks;
+        if (!tracks || tracks.length <= 1) {
+            showOSD("No Alternate Audio Tracks");
+            return;
+        }
+
+        let currentlyEnabledIndex = 0;
+        for (let i = 0; i < tracks.length; i++) {
+            if (tracks[i].enabled) {
+                currentlyEnabledIndex = i;
+                tracks[i].enabled = false;
+                break;
+            }
+        }
+
+        let nextIndex = (currentlyEnabledIndex + 1) % tracks.length;
+        tracks[nextIndex].enabled = true;
+        showOSD(`Audio Track: ${tracks[nextIndex].label || (nextIndex + 1)}`);
     });
 
     function navigateSubtitles(direction) {
@@ -1250,8 +1303,7 @@
             btnTheater.classList.remove('active-state');
             
             // Recalculate aspect bounds if fullscreen changes dimensions
-            if (currentArIndex > 0) applyVideoTransforms('aspect', currentArIndex);
-            if (currentCropIndex > 0) applyVideoTransforms('crop', currentCropIndex);
+            applyVideoTransforms('zoom');
             
             resetIdleTimer();
         } else {
@@ -1259,15 +1311,15 @@
             clearTimeout(idleTimer);
             appWindow.classList.remove('idle');
             
-            if (currentArIndex > 0) applyVideoTransforms('aspect', currentArIndex);
-            if (currentCropIndex > 0) applyVideoTransforms('crop', currentCropIndex);
+            applyVideoTransforms('zoom');
         }
     });
 
     // Window resize handler for bounds recalculation
     window.addEventListener('resize', () => {
-        if (currentArIndex > 0) applyVideoTransforms('aspect', currentArIndex);
-        if (currentCropIndex > 0) applyVideoTransforms('crop', currentCropIndex);
+        if (currentArIndex > 0 || currentCropIndex > 0 || currentZoomIndex > 0) {
+            applyVideoTransforms();
+        }
     });
 
     // --- Event Listeners ---
@@ -1275,7 +1327,7 @@
     // File Inputs
     btnAddMedia.onclick = () => fileInput.click();
     fileInput.onchange = (e) => loadFiles(e.target.files);
-    btnSubtitle.onclick = () => subtitleInput.click();
+    btnLoadSubtitle.onclick = () => subtitleInput.click();
 
     // Drag and Drop
     playlistSidebar.addEventListener('dragover', (e) => {
