@@ -175,14 +175,54 @@
         }
 
         .playlist-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
             padding: 6px 12px;
             font-size: 12px;
             color: #222;
             border-bottom: 1px solid #eaeaea;
             cursor: pointer;
+        }
+
+        .playlist-item-title {
+            flex: 1;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            padding-right: 8px;
+        }
+
+        .playlist-item-controls {
+            display: flex;
+            gap: 4px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .playlist-item:hover .playlist-item-controls {
+            opacity: 1;
+        }
+
+        .item-btn {
+            background: transparent;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 3px;
+            color: #555;
+            transition: background 0.1s;
+        }
+
+        .item-btn:hover {
+            background: #e0e0e0;
+        }
+
+        .item-btn svg {
+            fill: currentColor;
         }
 
         .playlist-item:nth-child(even) {
@@ -193,6 +233,15 @@
             background-color: #3875d7;
             color: white;
             font-weight: bold;
+        }
+        
+        .playlist-item.playing .item-btn {
+            color: white;
+            border-color: #639bf0;
+        }
+        
+        .playlist-item.playing .item-btn:hover {
+            background: #255ebc;
         }
 
         /* Mavericks Scrollbar */
@@ -377,6 +426,10 @@
         body.dark-mode .playlist-item { color: #ccc; border-bottom-color: #333; }
         body.dark-mode .playlist-item:nth-child(even) { background-color: #252525; }
         body.dark-mode .playlist-item.playing { background-color: #1a5c9a; color: white; }
+        
+        body.dark-mode .item-btn { border-color: #555; color: #ccc; }
+        body.dark-mode .item-btn:hover { background: #444; }
+        
         body.dark-mode #controls-area {
             background-image: linear-gradient(to bottom, #444 0%, #222 100%);
             border-top-color: #000;
@@ -494,13 +547,11 @@
 
 <script>
     // --- State ---
-    let playlist = [];
+    let playlist = []; // Array of { file: File, objectUrl: String|null, subtitleUrl: String|null }
     let currentIndex = -1;
     let isLooping = false;
-    let objectUrls = [];
     let idleTimer;
     let osdTimer;
-    let currentSubtitleUrl = null;
 
     // Aspect Ratios & Crop Configuration
     const aspectRatios = ['Default', '16:9', '4:3', '1:1', '16:10', '2.21:1', '2.35:1', '2.39:1', '5:4'];
@@ -537,11 +588,14 @@
     const btnMute = document.getElementById('btn-mute');
     const btnAddMedia = document.getElementById('add-media-btn');
 
-    // SVGs for toggles
+    // SVGs for toggles and icons
     const iconPlay = `<path d="M4 2l10 6-10 6V2z"/>`;
     const iconPause = `<path d="M4 2h3v12H4V2zm5 0h3v12H9V2z"/>`;
     const iconVolOn = `<path d="M2 6v4h3l4 4V2L5 6H2zm10-1.5v7c1.3-.7 2-2 2-3.5s-.7-2.8-2-3.5z"/>`;
     const iconVolOff = `<path d="M2 6v4h3l4 4V2L5 6H2zm9 0l3 3m0-3l-3 3"/>`;
+    const iconUp = `<svg width="10" height="10" viewBox="0 0 16 16"><path d="M8 2l-6 6h4v6h4V8h4z"/></svg>`;
+    const iconDown = `<svg width="10" height="10" viewBox="0 0 16 16"><path d="M8 14l6-6h-4V2H6v6H2z"/></svg>`;
+    const iconRemove = `<svg width="10" height="10" viewBox="0 0 16 16"><path d="M14 3.4L12.6 2 8 6.6 3.4 2 2 3.4 6.6 8 2 12.6 3.4 14 8 9.4 12.6 14 14 12.6 9.4 8z"/></svg>`;
 
     // --- Core Functions ---
 
@@ -559,6 +613,8 @@
         osdTimer = setTimeout(() => osdText.style.opacity = 0, 2000);
     }
 
+    // --- Playlist Management ---
+
     function updatePlaylistUI() {
         if (playlist.length === 0) {
             playlistItemsContainer.innerHTML = '<li style="padding: 20px; text-align: center; color: #888; font-style: italic;">Drag & Drop media files here or click \'+\' to add.</li>';
@@ -566,12 +622,39 @@
         }
 
         playlistItemsContainer.innerHTML = '';
-        playlist.forEach((file, index) => {
+        playlist.forEach((item, index) => {
             const li = document.createElement('li');
             li.className = `playlist-item ${index === currentIndex ? 'playing' : ''}`;
-            li.textContent = file.name;
-            li.title = file.name;
             li.ondblclick = () => playItem(index);
+
+            const titleSpan = document.createElement('div');
+            titleSpan.className = 'playlist-item-title';
+            titleSpan.textContent = item.file.name;
+            titleSpan.title = item.file.name;
+
+            const controlsDiv = document.createElement('div');
+            controlsDiv.className = 'playlist-item-controls';
+
+            const btnUp = document.createElement('button');
+            btnUp.className = 'item-btn';
+            btnUp.title = "Move Up";
+            btnUp.innerHTML = iconUp;
+            btnUp.onclick = (e) => { e.stopPropagation(); moveItem(index, -1); };
+
+            const btnDown = document.createElement('button');
+            btnDown.className = 'item-btn';
+            btnDown.title = "Move Down";
+            btnDown.innerHTML = iconDown;
+            btnDown.onclick = (e) => { e.stopPropagation(); moveItem(index, 1); };
+
+            const btnRemove = document.createElement('button');
+            btnRemove.className = 'item-btn';
+            btnRemove.title = "Remove";
+            btnRemove.innerHTML = iconRemove;
+            btnRemove.onclick = (e) => { e.stopPropagation(); removeItem(index); };
+
+            controlsDiv.append(btnUp, btnDown, btnRemove);
+            li.append(titleSpan, controlsDiv);
             playlistItemsContainer.appendChild(li);
         });
     }
@@ -579,7 +662,11 @@
     function loadFiles(files) {
         for (let i = 0; i < files.length; i++) {
             if (files[i].type.startsWith('video/') || files[i].type.startsWith('audio/')) {
-                playlist.push(files[i]);
+                playlist.push({
+                    file: files[i],
+                    objectUrl: null,
+                    subtitleUrl: null
+                });
             }
         }
         updatePlaylistUI();
@@ -588,20 +675,86 @@
         }
     }
 
+    function moveItem(index, direction) {
+        if (direction === -1 && index === 0) return;
+        if (direction === 1 && index === playlist.length - 1) return;
+
+        const targetIndex = index + direction;
+        
+        // Swap array elements
+        const temp = playlist[index];
+        playlist[index] = playlist[targetIndex];
+        playlist[targetIndex] = temp;
+
+        // Keep currentIndex tracking the actively playing item
+        if (currentIndex === index) {
+            currentIndex = targetIndex;
+        } else if (currentIndex === targetIndex) {
+            currentIndex = index;
+        }
+
+        updatePlaylistUI();
+    }
+
+    function removeItem(index) {
+        const item = playlist[index];
+        
+        // Memory cleanup
+        if (item.objectUrl) URL.revokeObjectURL(item.objectUrl);
+        if (item.subtitleUrl) URL.revokeObjectURL(item.subtitleUrl);
+
+        playlist.splice(index, 1);
+
+        if (playlist.length === 0) {
+            currentIndex = -1;
+            player.src = "";
+            let oldTrack = player.querySelector('track');
+            if (oldTrack) oldTrack.remove();
+            nowPlayingText.textContent = "VLC Web Player";
+            stop();
+        } else if (currentIndex === index) {
+            // We removed the item currently playing
+            currentIndex = -1; 
+            let nextToPlay = index >= playlist.length ? playlist.length - 1 : index;
+            playItem(nextToPlay);
+        } else if (currentIndex > index) {
+            // Shift index back to maintain correct tracking if an earlier item is removed
+            currentIndex--;
+        }
+
+        updatePlaylistUI();
+    }
+
     function playItem(index) {
         if (index < 0 || index >= playlist.length) return;
         
-        // Clean up previous URL to prevent memory leaks
-        if (objectUrls[index]) {
-            player.src = objectUrls[index];
-        } else {
-            const url = URL.createObjectURL(playlist[index]);
-            objectUrls[index] = url;
-            player.src = url;
+        const item = playlist[index];
+
+        if (!item.objectUrl) {
+            item.objectUrl = URL.createObjectURL(item.file);
+        }
+        player.src = item.objectUrl;
+
+        // Handle item-specific subtitles
+        let oldTrack = player.querySelector('track');
+        if (oldTrack) oldTrack.remove();
+
+        if (item.subtitleUrl) {
+            const track = document.createElement('track');
+            track.kind = 'subtitles';
+            track.label = 'Custom Subtitles';
+            track.srclang = 'en';
+            track.src = item.subtitleUrl;
+            track.default = true;
+            player.appendChild(track);
+
+            if (player.textTracks && player.textTracks.length > 0) {
+                player.textTracks[0].mode = 'showing';
+            }
         }
 
         currentIndex = index;
-        nowPlayingText.textContent = playlist[index].name;
+        nowPlayingText.textContent = item.file.name;
         updatePlaylistUI();
         
         // Reset crop and aspect ratio for new item
@@ -718,6 +871,7 @@
     }
 
     // --- Subtitles Engine ---
+    
     function srtToVtt(srtContent) {
         let vtt = 'WEBVTT\n\n';
         // Replace SRT comma milliseconds with VTT dot milliseconds
@@ -727,50 +881,91 @@
 
     subtitleInput.addEventListener('change', (e) => {
         const file = e.target.files[0];
-        if (!file) return;
+        if (!file || currentIndex === -1) {
+            if (currentIndex === -1) showOSD("Load a media file first");
+            return;
+        }
 
         const reader = new FileReader();
         reader.onload = (e) => {
             let content = e.target.result;
             
-            // Convert to VTT if it's an SRT
             if (file.name.toLowerCase().endsWith('.srt')) {
                 content = srtToVtt(content);
             }
 
-            // Cleanup previous subtitle memory
-            if (currentSubtitleUrl) {
-                URL.revokeObjectURL(currentSubtitleUrl);
+            const item = playlist[currentIndex];
+
+            if (item.subtitleUrl) {
+                URL.revokeObjectURL(item.subtitleUrl);
             }
 
             const blob = new Blob([content], { type: 'text/vtt' });
-            currentSubtitleUrl = URL.createObjectURL(blob);
+            item.subtitleUrl = URL.createObjectURL(blob);
 
-            // Remove old track element
+            // Apply directly since this is the currently playing item
             let oldTrack = player.querySelector('track');
             if (oldTrack) oldTrack.remove();
 
-            // Inject new track
             const track = document.createElement('track');
             track.kind = 'subtitles';
             track.label = 'Custom Subtitles';
             track.srclang = 'en';
-            track.src = currentSubtitleUrl;
+            track.src = item.subtitleUrl;
             track.default = true;
             player.appendChild(track);
 
-            // Force browser to display the injected subtitles
             if (player.textTracks && player.textTracks.length > 0) {
                 player.textTracks[0].mode = 'showing';
             }
 
             showOSD("Subtitle Loaded");
-            
-            // Reset input so the same file can be selected again
             subtitleInput.value = '';
         };
         reader.readAsText(file);
     });
+
+    function navigateSubtitles(direction) {
+        const tracks = player.textTracks;
+        if (!tracks || tracks.length === 0) return;
+        
+        let track = null;
+        for (let i = 0; i < tracks.length; i++) {
+            if (tracks[i].mode === 'showing') {
+                track = tracks[i];
+                break;
+            }
+        }
+
+        if (!track || !track.cues || track.cues.length === 0) {
+            showOSD("No Subtitles Loaded");
+            return;
+        }
+
+        const currentTime = player.currentTime;
+        let targetTime = -1;
+
+        if (direction === 'next') {
+            for (let i = 0; i < track.cues.length; i++) {
+                if (track.cues[i].startTime > currentTime + 0.1) {
+                    targetTime = track.cues[i].startTime;
+                    break;
+                }
+            }
+        } else if (direction === 'prev') {
+            for (let i = track.cues.length - 1; i >= 0; i--) {
+                if (track.cues[i].startTime < currentTime - 0.5) { // Small buffer for double-tapping prev
+                    targetTime = track.cues[i].startTime;
+                    break;
+                }
+            }
+        }
+
+        if (targetTime !== -1) {
+            player.currentTime = targetTime;
+            showOSD(direction === 'next' ? 'Next Subtitle' : 'Prev Subtitle');
+        }
+    }
 
     function changePlaybackSpeed(delta) {
         player.playbackRate = Math.max(0.25, Math.min(4.0, player.playbackRate + delta));
@@ -900,8 +1095,9 @@
     };
     
     btnDarkMode.onclick = () => {
-        document.body.classList.toggle('dark-mode');
+        const isDark = document.body.classList.toggle('dark-mode');
         btnDarkMode.classList.toggle('active-state');
+        localStorage.setItem('vlc-web-theme', isDark ? 'dark' : 'light');
     };
 
     btnLoop.onclick = () => {
@@ -957,13 +1153,21 @@
                 break;
             case 'arrowright':
                 e.preventDefault();
-                player.currentTime = Math.min(player.currentTime + 10, player.duration);
-                showOSD(`+10s`);
+                if (e.ctrlKey) {
+                    navigateSubtitles('next');
+                } else {
+                    player.currentTime = Math.min(player.currentTime + 10, player.duration);
+                    showOSD(`+10s`);
+                }
                 break;
             case 'arrowleft':
                 e.preventDefault();
-                player.currentTime = Math.max(player.currentTime - 10, 0);
-                showOSD(`-10s`);
+                if (e.ctrlKey) {
+                    navigateSubtitles('prev');
+                } else {
+                    player.currentTime = Math.max(player.currentTime - 10, 0);
+                    showOSD(`-10s`);
+                }
                 break;
             case 'arrowup':
                 e.preventDefault();
@@ -980,7 +1184,13 @@
         }
     });
 
-    // Initialize UI
+    // Initialize UI and Theme
+    const savedTheme = localStorage.getItem('vlc-web-theme');
+    if (savedTheme === 'dark') {
+        document.body.classList.add('dark-mode');
+        btnDarkMode.classList.add('active-state');
+    }
+
     btnPlaylist.classList.add('active-state'); // Sidebar open by default
     updateVolumeUI();
 
