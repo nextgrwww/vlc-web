@@ -456,6 +456,46 @@
 
         .hidden { display: none !important; }
 
+        /* Modal Overlays (About & Help) */
+        .modal-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        
+        .modal-content {
+            background-color: #f1f5f8;
+            border: 1px solid #a6a6a6;
+            border-radius: 8px;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.6), 0 1px 0 rgba(255,255,255,0.8) inset;
+            padding: 30px;
+            width: 380px;
+            max-width: 90%;
+            text-align: center;
+            position: relative;
+            color: #333;
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 10px;
+            right: 15px;
+            background: transparent;
+            border: none;
+            font-size: 24px;
+            font-weight: bold;
+            cursor: pointer;
+            color: #888;
+        }
+
+        .modal-close:hover {
+            color: #333;
+        }
+
         /* Dark Mode Overrides */
         body.dark-mode #app-window { background-color: #1e1e1e; }
         body.dark-mode #playlist-sidebar { background-color: #2c2c2c; border-left-color: #000; }
@@ -521,11 +561,55 @@
         body.dark-mode #empty-state {
             background: radial-gradient(circle at center, #1a1a1a 0%, #000 100%);
         }
+        body.dark-mode .modal-content {
+            background-color: #2c2c2c;
+            border-color: #000;
+            color: #eee;
+        }
+        body.dark-mode .modal-close:hover { color: #fff; }
     </style>
 </head>
 <body>
 
 <div id="app-window">
+    <!-- Modals -->
+    <div id="about-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <button class="modal-close" id="btn-close-about">&times;</button>
+            <svg class="animated-logo" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" style="width: 120px; height: 120px; margin: 0 auto;">
+                <!-- Orbiting Particles -->
+                <circle class="orbit-1" cx="100" cy="100" r="12" fill="url(#ringGrad)" />
+                <circle class="orbit-2" cx="100" cy="100" r="7" fill="url(#orbitGrad)" />
+                <!-- Main Icon Body -->
+                <rect x="50" y="50" width="100" height="100" rx="25" fill="url(#lumeGrad)" />
+                <!-- Play Button Polygon -->
+                <polygon points="85,75 85,125 125,100" fill="#ffffff" />
+            </svg>
+            <h2 style="margin-top: 15px; font-weight: bold; font-size: 22px; background: -webkit-linear-gradient(45deg, #E94057, #F27121); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Lume Media Player</h2>
+            <p style="margin-top: 10px; font-weight: bold; font-size: 14px;">Created by: Tekken (Hammad Ahmed)</p>
+            <p style="margin-top: 10px; font-size: 13px; color: inherit; opacity: 0.8; line-height: 1.5;">Version 1.0<br>A modern, web-based local HTML5 media player providing an advanced cinematic playback experience.</p>
+        </div>
+    </div>
+
+    <div id="help-modal" class="modal-overlay hidden">
+        <div class="modal-content" style="text-align: left;">
+            <button class="modal-close" id="btn-close-help">&times;</button>
+            <h2 style="margin-bottom: 15px; font-size: 20px; text-align: center;">Keyboard Shortcuts</h2>
+            <ul style="list-style: none; font-size: 13px; line-height: 2; padding: 0;">
+                <li><strong>Space:</strong> Play / Pause</li>
+                <li><strong>F / Double Click:</strong> Toggle Fullscreen</li>
+                <li><strong>T:</strong> Toggle Theater Mode</li>
+                <li><strong>Z:</strong> Cycle Zoom Modes (Fit, Fill, Original)</li>
+                <li><strong>A / C:</strong> Toggle Aspect Ratio / Crop</li>
+                <li><strong>M:</strong> Toggle Mute</li>
+                <li><strong>[ / ]:</strong> Decrease / Increase Speed</li>
+                <li><strong>Arrow Left/Right:</strong> Seek &plusmn;10s</li>
+                <li><strong>Ctrl + Arrow Left/Right:</strong> Prev/Next Subtitle</li>
+                <li><strong>Arrow Up/Down:</strong> Adjust Volume</li>
+            </ul>
+        </div>
+    </div>
+
     <div id="main-area">
         <div id="video-container" title="Double click to toggle fullscreen">
             <!-- Animated SVG Empty State Overlay (Lume Media Player) -->
@@ -620,7 +704,7 @@
                 <div id="now-playing-text">Lume Media Player</div>
             </div>
 
-            <!-- Right Controls: Playlist, Subtitles, Loop, Vol -->
+            <!-- Right Controls: Playlist, Subtitles, Loop, Vol, Actions -->
             <div class="control-group">
                 <button class="mac-btn" id="btn-dark-mode" title="Toggle Dark Mode" style="margin-right: 8px;">
                     <svg width="14" height="14" viewBox="0 0 16 16"><path d="M6 .278a.768.768 0 0 1 .08.858 7.208 7.208 0 0 0-.878 3.46c0 4.021 3.278 7.277 7.318 7.277.527 0 1.04-.055 1.533-.16a.787.787 0 0 1 .81.316.733.733 0 0 1-.031.893A8.349 8.349 0 0 1 8.344 16C3.734 16 0 12.286 0 7.71 0 4.266 2.114 1.312 5.124.06A.752.752 0 0 1 6 .278z"/></svg>
@@ -643,6 +727,15 @@
                     <svg width="14" height="14" viewBox="0 0 16 16" id="icon-vol"><path d="M2 6v4h3l4 4V2L5 6H2zm10-1.5v7c1.3-.7 2-2 2-3.5s-.7-2.8-2-3.5z"/></svg>
                 </button>
                 <input type="range" id="volume-slider" value="1" min="0" max="1" step="0.05" title="Volume (Up/Down)">
+
+                <div class="btn-group" style="margin-left: 8px;">
+                    <button class="mac-btn" id="btn-about" title="About">
+                        <svg width="14" height="14" viewBox="0 0 16 16"><path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0-1A6 6 0 1 0 8 2a6 6 0 0 0 0 12zM7 7h2v5H7V7zm1-3a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/></svg>
+                    </button>
+                    <button class="mac-btn" id="btn-help" title="Help">
+                        <svg width="14" height="14" viewBox="0 0 16 16"><path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0-1A6 6 0 1 0 8 2a6 6 0 0 0 0 12zM7 4h2a2 2 0 0 1 2 2c0 1.5-2 2-2 3v1H7V8.5c0-1.5 2-2 2-2.5a1 1 0 0 0-2 0H5a3 3 0 0 1 3-3zm1 8a1 1 0 1 1 0-2 1 1 0 0 1 0 2z"/></svg>
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -656,10 +749,13 @@
     let idleTimer;
     let osdTimer;
 
-    // Aspect Ratios & Crop Configuration
+    // Aspect Ratios, Crop & Zoom Configuration
     const aspectRatios = ['Default', '16:9', '4:3', '1:1', '16:10', '2.21:1', '2.35:1', '2.39:1', '5:4'];
     let currentArIndex = 0;
     let currentCropIndex = 0;
+
+    const zoomModes = ['Fit Screen', 'Fill Screen', 'Original Size'];
+    let currentZoomIndex = 0;
 
     // --- DOM Elements ---
     const appWindow = document.getElementById('app-window');
@@ -691,6 +787,14 @@
     const btnLoop = document.getElementById('btn-loop');
     const btnMute = document.getElementById('btn-mute');
     const btnAddMedia = document.getElementById('add-media-btn');
+    const btnAbout = document.getElementById('btn-about');
+    const btnHelp = document.getElementById('btn-help');
+
+    // Modals
+    const aboutModal = document.getElementById('about-modal');
+    const helpModal = document.getElementById('help-modal');
+    const btnCloseAbout = document.getElementById('btn-close-about');
+    const btnCloseHelp = document.getElementById('btn-close-help');
 
     // SVGs for toggles and icons
     const iconPlay = `<path d="M4 2l10 6-10 6V2z"/>`;
@@ -873,9 +977,10 @@
         
         updatePlaylistUI();
         
-        // Reset crop and aspect ratio for new item
+        // Reset crop, aspect ratio, and zoom for new item
         currentArIndex = 0;
         currentCropIndex = 0;
+        currentZoomIndex = 0;
         applyVideoTransforms('default', 0);
 
         player.play().catch(e => console.log("Playback prevented:", e));
@@ -946,9 +1051,29 @@
         showOSD(appWindow.classList.contains('theater-mode') ? "Theater Mode On" : "Theater Mode Off");
     }
 
-    // --- Aspect Ratio & Crop Engine ---
+    // --- Aspect Ratio, Crop & Zoom Engine ---
     
     function applyVideoTransforms(mode, ratioIndex) {
+        if (mode !== 'zoom') {
+            currentZoomIndex = 0; // Reset Zoom state if AR/Crop is manipulated
+        }
+
+        if (mode === 'zoom') {
+            const zMode = zoomModes[ratioIndex];
+            player.style.maxWidth = '100%';
+            player.style.maxHeight = '100%';
+            
+            if (zMode === 'Fit Screen') {
+                player.style.objectFit = 'contain';
+            } else if (zMode === 'Fill Screen') {
+                player.style.objectFit = 'cover';
+            } else if (zMode === 'Original Size') {
+                player.style.objectFit = 'none';
+            }
+            showOSD(`Zoom: ${zMode}`);
+            return;
+        }
+
         const ar = aspectRatios[ratioIndex];
         
         if (ar === 'Default') {
@@ -984,6 +1109,13 @@
         currentCropIndex = (currentCropIndex + 1) % aspectRatios.length;
         currentArIndex = 0; // Reset AR when changing Crop
         applyVideoTransforms('crop', currentCropIndex);
+    }
+
+    function toggleZoom() {
+        currentZoomIndex = (currentZoomIndex + 1) % zoomModes.length;
+        currentArIndex = 0; // Reset AR
+        currentCropIndex = 0; // Reset Crop
+        applyVideoTransforms('zoom', currentZoomIndex);
     }
 
     // --- Subtitles Engine ---
@@ -1221,10 +1353,33 @@
         btnLoop.classList.toggle('active-state');
     };
 
+    // Modal Events
+    btnAbout.onclick = () => aboutModal.classList.remove('hidden');
+    btnCloseAbout.onclick = () => aboutModal.classList.add('hidden');
+    
+    btnHelp.onclick = () => helpModal.classList.remove('hidden');
+    btnCloseHelp.onclick = () => helpModal.classList.add('hidden');
+
+    // Close modals on clicking overlay background
+    window.addEventListener('click', (e) => {
+        if (e.target === aboutModal) aboutModal.classList.add('hidden');
+        if (e.target === helpModal) helpModal.classList.add('hidden');
+    });
+
     // Keyboard Shortcuts (VLC Mappings)
     window.addEventListener('keydown', (e) => {
         // Prevent shortcuts if interacting with input fields
         if (e.target.tagName.toLowerCase() === 'input' && e.target.type !== 'range') return;
+
+        // Close modals on Escape
+        if (e.key === 'Escape') {
+            aboutModal.classList.add('hidden');
+            helpModal.classList.add('hidden');
+            return;
+        }
+
+        // Prevent shortcuts if a modal is open
+        if (!aboutModal.classList.contains('hidden') || !helpModal.classList.contains('hidden')) return;
 
         switch(e.key.toLowerCase()) {
             case ' ':
@@ -1247,6 +1402,10 @@
             case 't':
                 e.preventDefault();
                 toggleTheaterMode();
+                break;
+            case 'z':
+                e.preventDefault();
+                toggleZoom();
                 break;
             case 'a':
                 e.preventDefault();
