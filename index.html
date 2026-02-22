@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HTML5 Media Player</title>
+    <style>
+        /* CSS Reset & Font */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Lucida Grande", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #2c2c2c;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        /* GTK4 Window Layout Style */
+        #app-window {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background-color: #ececec;
+            /* GTK4 rounded corners when not fully maximized, but for web we fill screen. 
+               Adding slight border radius if viewed in a smaller iframe */
+            border-radius: 8px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            overflow: hidden;
+        }
+
+        /* Main Area (Video + Sidebar) */
+        #main-area {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+            background-color: #000;
+        }
+
+        #video-container {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+        }
+
+        video {
+            width: 100%;
+            height: 100%;
+            background-color: #000;
+            outline: none;
+        }
+
+        /* OS X Mavericks Styled Playlist Sidebar */
+        #playlist-sidebar {
+            width: 300px;
+            background-color: #f1f5f8;
+            border-left: 1px solid #b3b3b3;
+            display: flex;
+            flex-direction: column;
+            transition: margin-right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        #playlist-sidebar.collapsed {
+            margin-right: -300px;
+        }
+
+        .playlist-header {
+            background-image: linear-gradient(to bottom, #fdfdfd 0%, #e3e3e3 100%);
+            border-bottom: 1px solid #a6a6a6;
+            padding: 8px 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 13px;
+            font-weight: bold;
+            color: #333;
+            text-shadow: 0 1px 0 rgba(255,255,255,0.8);
+            box-shadow: 0 1px 0 rgba(255,255,255,0.5) inset;
+        }
+
+        /* Mavericks Buttons */
+        .mac-btn {
+            background-image: linear-gradient(to bottom, #fdfdfd 0%, #e3e3e3 100%);
+            border: 1px solid #a6a6a6;
+            border-bottom-color: #979797;
+            border-radius: 4px;
+            box-shadow: 0 1px 0 rgba(255,255,255,0.8) inset, 0 1px 1px rgba(0,0,0,0.05);
+            color: #333;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 4px 10px;
+            font-size: 13px;
+        }
+
+        .mac-btn:active {
+            background-image: linear-gradient(to bottom, #d0d0d0 0%, #e1e1e1 100%);
+            box-shadow: 0 1px 2px rgba(0,0,0,0.2) inset;
+        }
+
+        .mac-btn svg {
+            fill: #444;
+            filter: drop-shadow(0 1px 0 rgba(255,255,255,0.8));
+        }
+
+        .mac-btn.active-state {
+            background-image: linear-gradient(to bottom, #5cb4fc 0%, #0482fc 100%);
+            border-color: #0364c6;
+            color: white;
+            text-shadow: 0 1px 0 rgba(0,0,0,0.4);
+            box-shadow: 0 1px 1px rgba(255,255,255,0.3) inset;
+        }
+
+        .mac-btn.active-state svg {
+            fill: white;
+            filter: drop-shadow(0 -1px 0 rgba(0,0,0,0.4));
+        }
+
+        #playlist-items {
+            list-style: none;
+            overflow-y: auto;
+            flex: 1;
+            background-color: #ffffff;
+        }
+
+        /* Drag & Drop Highlight */
+        #playlist-sidebar.dragover #playlist-items {
+            background-color: #e6f3ff;
+            border: 2px dashed #1e90ff;
+        }
+
+        .playlist-item {
+            padding: 6px 12px;
+            font-size: 12px;
+            color: #222;
+            border-bottom: 1px solid #eaeaea;
+            cursor: pointer;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .playlist-item:nth-child(even) {
+            background-color: #f6f8fa;
+        }
+
+        .playlist-item.playing {
+            background-color: #3875d7;
+            color: white;
+            font-weight: bold;
+        }
+
+        /* Mavericks Scrollbar */
+        ::-webkit-scrollbar { width: 12px; height: 12px; }
+        ::-webkit-scrollbar-track { background: #f0f0f0; border-left: 1px solid #ddd; }
+        ::-webkit-scrollbar-thumb {
+            background-color: #c0c0c0;
+            border-radius: 10px;
+            border: 2px solid #f0f0f0;
+        }
+        ::-webkit-scrollbar-thumb:hover { background-color: #a0a0a0; }
+
+        /* Bottom Controls Area (VLC layout) */
+        #controls-area {
+            background-image: linear-gradient(to bottom, #ededed 0%, #d4d4d4 100%);
+            border-top: 1px solid #999;
+            display: flex;
+            flex-direction: column;
+            padding: 8px 12px 12px 12px;
+            box-shadow: 0 1px 0 rgba(255,255,255,0.8) inset;
+            z-index: 10;
+        }
+
+        /* Timeline Slider */
+        .slider-container {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+            gap: 10px;
+        }
+
+        .time-display {
+            font-size: 11px;
+            color: #555;
+            text-shadow: 0 1px 0 rgba(255,255,255,0.8);
+            font-variant-numeric: tabular-nums;
+            width: 40px;
+            text-align: center;
+        }
+
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+            cursor: pointer;
+        }
+        
+        input[type=range]:focus { outline: none; }
+
+        /* Mavericks Slider Track */
+        input[type=range]::-webkit-slider-runnable-track {
+            height: 6px;
+            background: #b8b8b8;
+            border-radius: 3px;
+            border: 1px solid #999;
+            box-shadow: 0 1px 1px rgba(0,0,0,0.2) inset, 0 1px 0 rgba(255,255,255,0.8);
+        }
+
+        /* Mavericks Slider Thumb */
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background-image: linear-gradient(to bottom, #ffffff 0%, #d4d4d4 100%);
+            border: 1px solid #888;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+            margin-top: -6px;
+        }
+
+        .controls-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-group {
+            display: flex;
+        }
+        
+        .btn-group .mac-btn {
+            border-radius: 0;
+            border-right: none;
+        }
+        
+        .btn-group .mac-btn:first-child {
+            border-top-left-radius: 4px;
+            border-bottom-left-radius: 4px;
+        }
+        
+        .btn-group .mac-btn:last-child {
+            border-top-right-radius: 4px;
+            border-bottom-right-radius: 4px;
+            border-right: 1px solid #a6a6a6;
+        }
+
+        #now-playing-text {
+            font-size: 12px;
+            color: #444;
+            text-shadow: 0 1px 0 rgba(255,255,255,0.8);
+            max-width: 300px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            text-align: center;
+        }
+
+        #volume-slider {
+            width: 80px;
+        }
+
+        .hidden { display: none !important; }
+
+        /* Dark Mode Overrides */
+        body.dark-mode #app-window { background-color: #1e1e1e; }
+        body.dark-mode #playlist-sidebar { background-color: #2c2c2c; border-left-color: #000; }
+        body.dark-mode .playlist-header { 
+            background-image: linear-gradient(to bottom, #4a4a4a 0%, #2b2b2b 100%);
+            border-bottom-color: #000;
+            color: #ddd;
+            text-shadow: 0 -1px 0 rgba(0,0,0,0.8);
+            box-shadow: 0 1px 0 rgba(255,255,255,0.1) inset;
+        }
+        body.dark-mode .mac-btn {
+            background-image: linear-gradient(to bottom, #555 0%, #333 100%);
+            border-color: #111;
+            box-shadow: 0 1px 0 rgba(255,255,255,0.1) inset, 0 1px 1px rgba(0,0,0,0.3);
+            color: #eee;
+        }
+        body.dark-mode .mac-btn:active {
+            background-image: linear-gradient(to bottom, #222 0%, #333 100%);
+        }
+        body.dark-mode .mac-btn svg {
+            fill: #eee;
+            filter: drop-shadow(0 -1px 0 rgba(0,0,0,0.8));
+        }
+        body.dark-mode .mac-btn.active-state {
+            background-image: linear-gradient(to bottom, #1a5c9a 0%, #033a76 100%);
+            border-color: #01162d;
+            color: white;
+            text-shadow: 0 1px 0 rgba(0,0,0,0.4);
+            box-shadow: 0 1px 1px rgba(0,0,0,0.3) inset;
+        }
+        body.dark-mode .mac-btn.active-state svg {
+            fill: white;
+            filter: drop-shadow(0 -1px 0 rgba(0,0,0,0.4));
+        }
+        body.dark-mode #playlist-items { background-color: #1e1e1e; }
+        body.dark-mode .playlist-item { color: #ccc; border-bottom-color: #333; }
+        body.dark-mode .playlist-item:nth-child(even) { background-color: #252525; }
+        body.dark-mode .playlist-item.playing { background-color: #1a5c9a; color: white; }
+        body.dark-mode #controls-area {
+            background-image: linear-gradient(to bottom, #444 0%, #222 100%);
+            border-top-color: #000;
+            box-shadow: 0 1px 0 rgba(255,255,255,0.1) inset;
+        }
+        body.dark-mode .time-display { color: #bbb; text-shadow: 0 -1px 0 rgba(0,0,0,0.8); }
+        body.dark-mode #now-playing-text { color: #ddd; text-shadow: 0 -1px 0 rgba(0,0,0,0.8); }
+        body.dark-mode input[type=range]::-webkit-slider-runnable-track {
+            background: #333;
+            border-color: #111;
+            box-shadow: 0 1px 1px rgba(0,0,0,0.5) inset, 0 1px 0 rgba(255,255,255,0.1);
+        }
+        body.dark-mode input[type=range]::-webkit-slider-thumb {
+            background-image: linear-gradient(to bottom, #666 0%, #333 100%);
+            border-color: #111;
+        }
+    </style>
+</head>
+<body>
+
+<div id="app-window">
+    <div id="main-area">
+        <div id="video-container" title="Double click to toggle fullscreen">
+            <video id="player" playsinline></video>
+        </div>
+        
+        <div id="playlist-sidebar">
+            <div class="playlist-header">
+                <span>Playlist</span>
+                <button class="mac-btn" id="add-media-btn" title="Add Media">
+                    <svg width="12" height="12" viewBox="0 0 16 16"><path d="M7 7V2h2v5h5v2H9v5H7V9H2V7h5z"/></svg>
+                </button>
+                <input type="file" id="file-input" multiple accept="audio/*,video/*" class="hidden">
+            </div>
+            <ul id="playlist-items">
+                <li style="padding: 20px; text-align: center; color: #888; font-style: italic;">
+                    Drag & Drop media files here or click '+' to add.
+                </li>
+            </ul>
+        </div>
+    </div>
+
+    <div id="controls-area">
+        <div class="slider-container">
+            <span class="time-display" id="current-time">00:00</span>
+            <input type="range" id="timeline" value="0" min="0" step="0.1">
+            <span class="time-display" id="total-time">00:00</span>
+        </div>
+        
+        <div class="controls-row">
+            <!-- Left Controls: Playback -->
+            <div class="control-group">
+                <div class="btn-group">
+                    <button class="mac-btn" id="btn-play" title="Play/Pause (Space)">
+                        <svg width="14" height="14" viewBox="0 0 16 16" id="icon-play"><path d="M4 2l10 6-10 6V2z"/></svg>
+                    </button>
+                    <button class="mac-btn" id="btn-prev" title="Previous (P)">
+                        <svg width="14" height="14" viewBox="0 0 16 16"><path d="M4 2v12h2V9l7 5V2l-7 5V2H4z"/></svg>
+                    </button>
+                    <button class="mac-btn" id="btn-stop" title="Stop (S)">
+                        <svg width="14" height="14" viewBox="0 0 16 16"><path d="M3 3h10v10H3V3z"/></svg>
+                    </button>
+                    <button class="mac-btn" id="btn-next" title="Next (N)">
+                        <svg width="14" height="14" viewBox="0 0 16 16"><path d="M12 2v12h-2V9l-7 5V2l7 5V2h2z"/></svg>
+                    </button>
+                </div>
+                <button class="mac-btn" id="btn-fullscreen" title="Fullscreen (F)">
+                    <svg width="14" height="14" viewBox="0 0 16 16"><path d="M2 2v4h2V4h2V2H2zm10 0v2h2v2h2V2h-4zM2 14h4v-2H4v-2H2v4zm10 0h4v-4h-2v2h-2v2z"/></svg>
+                </button>
+            </div>
+
+            <!-- Center Controls: Now Playing -->
+            <div class="control-group" style="flex: 1; justify-content: center;">
+                <div id="now-playing-text">VLC Web Player</div>
+            </div>
+
+            <!-- Right Controls: Playlist, Loop, Vol -->
+            <div class="control-group">
+                <button class="mac-btn" id="btn-dark-mode" title="Toggle Dark Mode" style="margin-right: 8px;">
+                    <svg width="14" height="14" viewBox="0 0 16 16"><path d="M6 .278a.768.768 0 0 1 .08.858 7.208 7.208 0 0 0-.878 3.46c0 4.021 3.278 7.277 7.318 7.277.527 0 1.04-.055 1.533-.16a.787.787 0 0 1 .81.316.733.733 0 0 1-.031.893A8.349 8.349 0 0 1 8.344 16C3.734 16 0 12.286 0 7.71 0 4.266 2.114 1.312 5.124.06A.752.752 0 0 1 6 .278z"/></svg>
+                </button>
+                <button class="mac-btn" id="btn-playlist" title="Toggle Playlist">
+                    <svg width="14" height="14" viewBox="0 0 16 16"><path d="M2 4h12v2H2V4zm0 4h12v2H2V8zm0 4h8v2H2v-2z"/></svg>
+                </button>
+                <div class="btn-group">
+                    <button class="mac-btn" id="btn-loop" title="Loop">
+                        <svg width="14" height="14" viewBox="0 0 16 16"><path d="M13 4v3h-2V5H5v2L2 4.5 5 2v2h8zM3 12v-3h2v2h8v-2l3 2.5-3 2.5v-2H3z"/></svg>
+                    </button>
+                </div>
+                
+                <button class="mac-btn" id="btn-mute" title="Mute (M)" style="margin-left: 8px;">
+                    <svg width="14" height="14" viewBox="0 0 16 16" id="icon-vol"><path d="M2 6v4h3l4 4V2L5 6H2zm10-1.5v7c1.3-.7 2-2 2-3.5s-.7-2.8-2-3.5z"/></svg>
+                </button>
+                <input type="range" id="volume-slider" value="1" min="0" max="1" step="0.05" title="Volume (Up/Down)">
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- State ---
+    let playlist = [];
+    let currentIndex = -1;
+    let isLooping = false;
+    let objectUrls = [];
+
+    // --- DOM Elements ---
+    const player = document.getElementById('player');
+    const videoContainer = document.getElementById('video-container');
+    const fileInput = document.getElementById('file-input');
+    const playlistItemsContainer = document.getElementById('playlist-items');
+    const playlistSidebar = document.getElementById('playlist-sidebar');
+    const timeline = document.getElementById('timeline');
+    const volumeSlider = document.getElementById('volume-slider');
+    const currentTimeDisplay = document.getElementById('current-time');
+    const totalTimeDisplay = document.getElementById('total-time');
+    const nowPlayingText = document.getElementById('now-playing-text');
+    
+    // Buttons
+    const btnPlay = document.getElementById('btn-play');
+    const btnPrev = document.getElementById('btn-prev');
+    const btnStop = document.getElementById('btn-stop');
+    const btnNext = document.getElementById('btn-next');
+    const btnFullscreen = document.getElementById('btn-fullscreen');
+    const btnPlaylist = document.getElementById('btn-playlist');
+    const btnDarkMode = document.getElementById('btn-dark-mode');
+    const btnLoop = document.getElementById('btn-loop');
+    const btnMute = document.getElementById('btn-mute');
+    const btnAddMedia = document.getElementById('add-media-btn');
+
+    // SVGs for toggles
+    const iconPlay = `<path d="M4 2l10 6-10 6V2z"/>`;
+    const iconPause = `<path d="M4 2h3v12H4V2zm5 0h3v12H9V2z"/>`;
+    const iconVolOn = `<path d="M2 6v4h3l4 4V2L5 6H2zm10-1.5v7c1.3-.7 2-2 2-3.5s-.7-2.8-2-3.5z"/>`;
+    const iconVolOff = `<path d="M2 6v4h3l4 4V2L5 6H2zm9 0l3 3m0-3l-3 3"/>`;
+
+    // --- Core Functions ---
+
+    function formatTime(seconds) {
+        if (isNaN(seconds)) return "00:00";
+        const m = Math.floor(seconds / 60);
+        const s = Math.floor(seconds % 60);
+        return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    }
+
+    function updatePlaylistUI() {
+        if (playlist.length === 0) {
+            playlistItemsContainer.innerHTML = '<li style="padding: 20px; text-align: center; color: #888; font-style: italic;">Drag & Drop media files here or click \'+\' to add.</li>';
+            return;
+        }
+
+        playlistItemsContainer.innerHTML = '';
+        playlist.forEach((file, index) => {
+            const li = document.createElement('li');
+            li.className = `playlist-item ${index === currentIndex ? 'playing' : ''}`;
+            li.textContent = file.name;
+            li.title = file.name;
+            li.ondblclick = () => playItem(index);
+            playlistItemsContainer.appendChild(li);
+        });
+    }
+
+    function loadFiles(files) {
+        for (let i = 0; i < files.length; i++) {
+            if (files[i].type.startsWith('video/') || files[i].type.startsWith('audio/')) {
+                playlist.push(files[i]);
+            }
+        }
+        updatePlaylistUI();
+        if (currentIndex === -1 && playlist.length > 0) {
+            playItem(0);
+        }
+    }
+
+    function playItem(index) {
+        if (index < 0 || index >= playlist.length) return;
+        
+        // Clean up previous URL to prevent memory leaks
+        if (objectUrls[index]) {
+            player.src = objectUrls[index];
+        } else {
+            const url = URL.createObjectURL(playlist[index]);
+            objectUrls[index] = url;
+            player.src = url;
+        }
+
+        currentIndex = index;
+        nowPlayingText.textContent = playlist[index].name;
+        updatePlaylistUI();
+        
+        player.play().catch(e => console.log("Playback prevented:", e));
+    }
+
+    function togglePlay() {
+        if (playlist.length === 0) return;
+        if (player.paused) {
+            player.play();
+        } else {
+            player.pause();
+        }
+    }
+
+    function stop() {
+        player.pause();
+        player.currentTime = 0;
+        btnPlay.querySelector('svg').innerHTML = iconPlay;
+    }
+
+    function playNext() {
+        if (playlist.length === 0) return;
+        let nextIdx = currentIndex + 1;
+        if (nextIdx >= playlist.length) {
+            nextIdx = isLooping ? 0 : playlist.length - 1;
+            if (!isLooping) { stop(); return; }
+        }
+        playItem(nextIdx);
+    }
+
+    function playPrev() {
+        if (playlist.length === 0) return;
+        let prevIdx = currentIndex - 1;
+        if (prevIdx < 0) prevIdx = isLooping ? playlist.length - 1 : 0;
+        playItem(prevIdx);
+    }
+
+    function toggleMute() {
+        player.muted = !player.muted;
+        updateVolumeUI();
+    }
+
+    function updateVolumeUI() {
+        if (player.muted || player.volume === 0) {
+            btnMute.querySelector('svg').innerHTML = iconVolOff;
+        } else {
+            btnMute.querySelector('svg').innerHTML = iconVolOn;
+        }
+        volumeSlider.value = player.muted ? 0 : player.volume;
+    }
+
+    function toggleFullscreen() {
+        if (!document.fullscreenElement) {
+            videoContainer.requestFullscreen().catch(err => console.log(err));
+        } else {
+            document.exitFullscreen();
+        }
+    }
+
+    // --- Event Listeners ---
+
+    // File Input
+    btnAddMedia.onclick = () => fileInput.click();
+    fileInput.onchange = (e) => loadFiles(e.target.files);
+
+    // Drag and Drop
+    playlistSidebar.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        playlistSidebar.classList.add('dragover');
+    });
+    playlistSidebar.addEventListener('dragleave', () => {
+        playlistSidebar.classList.remove('dragover');
+    });
+    playlistSidebar.addEventListener('drop', (e) => {
+        e.preventDefault();
+        playlistSidebar.classList.remove('dragover');
+        if (e.dataTransfer.files.length > 0) {
+            loadFiles(e.dataTransfer.files);
+        }
+    });
+
+    // Player events
+    player.addEventListener('play', () => btnPlay.querySelector('svg').innerHTML = iconPause);
+    player.addEventListener('pause', () => btnPlay.querySelector('svg').innerHTML = iconPlay);
+    player.addEventListener('timeupdate', () => {
+        if (!timeline.getAttribute('data-seeking')) {
+            timeline.value = player.currentTime;
+        }
+        currentTimeDisplay.textContent = formatTime(player.currentTime);
+    });
+    player.addEventListener('loadedmetadata', () => {
+        timeline.max = player.duration;
+        totalTimeDisplay.textContent = formatTime(player.duration);
+    });
+    player.addEventListener('ended', playNext);
+
+    // Timeline Drag
+    timeline.addEventListener('mousedown', () => timeline.setAttribute('data-seeking', 'true'));
+    timeline.addEventListener('mouseup', () => timeline.removeAttribute('data-seeking'));
+    timeline.addEventListener('input', () => {
+        player.currentTime = timeline.value;
+        currentTimeDisplay.textContent = formatTime(timeline.value);
+    });
+
+    // Volume
+    volumeSlider.addEventListener('input', () => {
+        player.volume = volumeSlider.value;
+        player.muted = false;
+        updateVolumeUI();
+    });
+
+    // Buttons
+    btnPlay.onclick = togglePlay;
+    btnStop.onclick = stop;
+    btnNext.onclick = playNext;
+    btnPrev.onclick = playPrev;
+    btnMute.onclick = toggleMute;
+    btnFullscreen.onclick = toggleFullscreen;
+    
+    // Video Area Double Click to Fullscreen
+    videoContainer.ondblclick = toggleFullscreen;
+
+    // Toggles
+    btnPlaylist.onclick = () => {
+        playlistSidebar.classList.toggle('collapsed');
+        btnPlaylist.classList.toggle('active-state');
+    };
+    
+    btnDarkMode.onclick = () => {
+        document.body.classList.toggle('dark-mode');
+        btnDarkMode.classList.toggle('active-state');
+    };
+
+    btnLoop.onclick = () => {
+        isLooping = !isLooping;
+        btnLoop.classList.toggle('active-state');
+    };
+
+    // Keyboard Shortcuts (VLC Mappings)
+    window.addEventListener('keydown', (e) => {
+        // Prevent shortcuts if interacting with input fields (though we only have file/range here)
+        if (e.target.tagName.toLowerCase() === 'input' && e.target.type !== 'range') return;
+
+        switch(e.key.toLowerCase()) {
+            case ' ':
+                e.preventDefault(); // Prevent scrolling
+                togglePlay();
+                break;
+            case 's':
+                stop();
+                break;
+            case 'n':
+                playNext();
+                break;
+            case 'p':
+                playPrev();
+                break;
+            case 'f':
+                toggleFullscreen();
+                break;
+            case 'm':
+                toggleMute();
+                break;
+            case 'arrowright':
+                e.preventDefault();
+                player.currentTime = Math.min(player.currentTime + 10, player.duration);
+                break;
+            case 'arrowleft':
+                e.preventDefault();
+                player.currentTime = Math.max(player.currentTime - 10, 0);
+                break;
+            case 'arrowup':
+                e.preventDefault();
+                player.volume = Math.min(player.volume + 0.05, 1);
+                updateVolumeUI();
+                break;
+            case 'arrowdown':
+                e.preventDefault();
+                player.volume = Math.max(player.volume - 0.05, 0);
+                updateVolumeUI();
+                break;
+        }
+    });
+
+    // Initialize UI
+    btnPlaylist.classList.add('active-state'); // Sidebar open by default
+    updateVolumeUI();
+
+</script>
+</body>
+</html>
