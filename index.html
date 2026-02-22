@@ -53,14 +53,29 @@
             align-items: center;
             position: relative;
             background-color: #000;
+            overflow: hidden;
         }
 
         video {
+            /* Sizing is controlled by JS for accurate AR/Crop constraints */
             width: 100%;
             height: 100%;
+            max-width: 100%;
+            max-height: 100%;
             background-color: #000;
             outline: none;
             object-fit: contain;
+            transition: max-width 0.1s, max-height 0.1s;
+        }
+
+        /* VLC Style Subtitles */
+        ::cue {
+            color: #ffffff;
+            background-color: transparent;
+            text-shadow: 2px 2px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 0px 2px 0 #000, 2px 0px 0 #000, 0px -2px 0 #000, -2px 0px 0 #000;
+            font-family: Arial, sans-serif;
+            font-size: 28px;
+            font-weight: bold;
         }
 
         /* OSD (On Screen Display) */
@@ -449,15 +464,20 @@
                 <div id="now-playing-text">VLC Web Player</div>
             </div>
 
-            <!-- Right Controls: Playlist, Loop, Vol -->
+            <!-- Right Controls: Playlist, Subtitles, Loop, Vol -->
             <div class="control-group">
                 <button class="mac-btn" id="btn-dark-mode" title="Toggle Dark Mode" style="margin-right: 8px;">
                     <svg width="14" height="14" viewBox="0 0 16 16"><path d="M6 .278a.768.768 0 0 1 .08.858 7.208 7.208 0 0 0-.878 3.46c0 4.021 3.278 7.277 7.318 7.277.527 0 1.04-.055 1.533-.16a.787.787 0 0 1 .81.316.733.733 0 0 1-.031.893A8.349 8.349 0 0 1 8.344 16C3.734 16 0 12.286 0 7.71 0 4.266 2.114 1.312 5.124.06A.752.752 0 0 1 6 .278z"/></svg>
                 </button>
-                <button class="mac-btn" id="btn-playlist" title="Toggle Playlist">
-                    <svg width="14" height="14" viewBox="0 0 16 16"><path d="M2 4h12v2H2V4zm0 4h12v2H2V8zm0 4h8v2H2v-2z"/></svg>
-                </button>
+                
+                <input type="file" id="subtitle-input" accept=".srt,.vtt" class="hidden">
                 <div class="btn-group">
+                    <button class="mac-btn" id="btn-subtitle" title="Load Subtitle File">
+                        <svg width="14" height="14" viewBox="0 0 16 16"><path d="M2 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2H2zm2.5 4.5H3v1h1.5a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5H2a.5.5 0 0 1-.5-.5v-3a.5.5 0 0 1 .5-.5h2.5a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5zm5 0H8v1h1.5a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5H7a.5.5 0 0 1-.5-.5v-3a.5.5 0 0 1 .5-.5h2.5a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5z"/></svg>
+                    </button>
+                    <button class="mac-btn" id="btn-playlist" title="Toggle Playlist">
+                        <svg width="14" height="14" viewBox="0 0 16 16"><path d="M2 4h12v2H2V4zm0 4h12v2H2V8zm0 4h8v2H2v-2z"/></svg>
+                    </button>
                     <button class="mac-btn" id="btn-loop" title="Loop">
                         <svg width="14" height="14" viewBox="0 0 16 16"><path d="M13 4v3h-2V5H5v2L2 4.5 5 2v2h8zM3 12v-3h2v2h8v-2l3 2.5-3 2.5v-2H3z"/></svg>
                     </button>
@@ -480,10 +500,12 @@
     let objectUrls = [];
     let idleTimer;
     let osdTimer;
+    let currentSubtitleUrl = null;
 
-    // Aspect Ratios Configuration
+    // Aspect Ratios & Crop Configuration
     const aspectRatios = ['Default', '16:9', '4:3', '1:1', '16:10', '2.21:1', '2.35:1', '2.39:1', '5:4'];
     let currentArIndex = 0;
+    let currentCropIndex = 0;
 
     // --- DOM Elements ---
     const appWindow = document.getElementById('app-window');
@@ -492,6 +514,7 @@
     const controlsArea = document.getElementById('controls-area');
     const osdText = document.getElementById('osd-text');
     const fileInput = document.getElementById('file-input');
+    const subtitleInput = document.getElementById('subtitle-input');
     const playlistItemsContainer = document.getElementById('playlist-items');
     const playlistSidebar = document.getElementById('playlist-sidebar');
     const timeline = document.getElementById('timeline');
@@ -508,6 +531,7 @@
     const btnFullscreen = document.getElementById('btn-fullscreen');
     const btnTheater = document.getElementById('btn-theater');
     const btnPlaylist = document.getElementById('btn-playlist');
+    const btnSubtitle = document.getElementById('btn-subtitle');
     const btnDarkMode = document.getElementById('btn-dark-mode');
     const btnLoop = document.getElementById('btn-loop');
     const btnMute = document.getElementById('btn-mute');
@@ -580,6 +604,11 @@
         nowPlayingText.textContent = playlist[index].name;
         updatePlaylistUI();
         
+        // Reset crop and aspect ratio for new item
+        currentArIndex = 0;
+        currentCropIndex = 0;
+        applyVideoTransforms('default', 0);
+
         player.play().catch(e => console.log("Playback prevented:", e));
     }
 
@@ -648,20 +677,100 @@
         showOSD(appWindow.classList.contains('theater-mode') ? "Theater Mode On" : "Theater Mode Off");
     }
 
-    function toggleAspectRatio() {
-        currentArIndex = (currentArIndex + 1) % aspectRatios.length;
-        const ar = aspectRatios[currentArIndex];
+    // --- Aspect Ratio & Crop Engine ---
+    
+    function applyVideoTransforms(mode, ratioIndex) {
+        const ar = aspectRatios[ratioIndex];
         
         if (ar === 'Default') {
-            player.style.aspectRatio = '';
+            player.style.maxWidth = '100%';
+            player.style.maxHeight = '100%';
             player.style.objectFit = 'contain';
-        } else {
-            // VLC strictly forces the video frame to stretch to this ratio
-            player.style.aspectRatio = ar.replace(':', '/');
-            player.style.objectFit = 'fill';
+            if (mode !== 'default') showOSD(mode === 'aspect' ? 'Aspect Ratio: Default' : 'Crop: Default');
+            return;
         }
-        showOSD(`Aspect Ratio: ${ar}`);
+
+        const [w, h] = ar.split(':');
+        // By setting the max bounds to exactly the ratio matching the window, and width/height to 100%,
+        // we create a perfectly letterboxed box for the video to either fill (stretch) or cover (crop).
+        player.style.maxWidth = `calc(100vh * (${w} / ${h}))`;
+        player.style.maxHeight = `calc(100vw * (${h} / ${w}))`;
+        
+        if (mode === 'aspect') {
+            player.style.objectFit = 'fill'; // Stretch internal video to the new bounds
+            showOSD(`Aspect Ratio: ${ar}`);
+        } else if (mode === 'crop') {
+            player.style.objectFit = 'cover'; // Zoom internal video to fill bounds (cropping overflow)
+            showOSD(`Crop: ${ar}`);
+        }
     }
+
+    function toggleAspectRatio() {
+        currentArIndex = (currentArIndex + 1) % aspectRatios.length;
+        currentCropIndex = 0; // Reset crop when changing AR
+        applyVideoTransforms('aspect', currentArIndex);
+    }
+
+    function toggleCrop() {
+        currentCropIndex = (currentCropIndex + 1) % aspectRatios.length;
+        currentArIndex = 0; // Reset AR when changing Crop
+        applyVideoTransforms('crop', currentCropIndex);
+    }
+
+    // --- Subtitles Engine ---
+    function srtToVtt(srtContent) {
+        let vtt = 'WEBVTT\n\n';
+        // Replace SRT comma milliseconds with VTT dot milliseconds
+        vtt += srtContent.replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2');
+        return vtt;
+    }
+
+    subtitleInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            let content = e.target.result;
+            
+            // Convert to VTT if it's an SRT
+            if (file.name.toLowerCase().endsWith('.srt')) {
+                content = srtToVtt(content);
+            }
+
+            // Cleanup previous subtitle memory
+            if (currentSubtitleUrl) {
+                URL.revokeObjectURL(currentSubtitleUrl);
+            }
+
+            const blob = new Blob([content], { type: 'text/vtt' });
+            currentSubtitleUrl = URL.createObjectURL(blob);
+
+            // Remove old track element
+            let oldTrack = player.querySelector('track');
+            if (oldTrack) oldTrack.remove();
+
+            // Inject new track
+            const track = document.createElement('track');
+            track.kind = 'subtitles';
+            track.label = 'Custom Subtitles';
+            track.srclang = 'en';
+            track.src = currentSubtitleUrl;
+            track.default = true;
+            player.appendChild(track);
+
+            // Force browser to display the injected subtitles
+            if (player.textTracks && player.textTracks.length > 0) {
+                player.textTracks[0].mode = 'showing';
+            }
+
+            showOSD("Subtitle Loaded");
+            
+            // Reset input so the same file can be selected again
+            subtitleInput.value = '';
+        };
+        reader.readAsText(file);
+    });
 
     function changePlaybackSpeed(delta) {
         player.playbackRate = Math.max(0.25, Math.min(4.0, player.playbackRate + delta));
@@ -696,19 +805,34 @@
             btnFullscreen.classList.add('active-state');
             appWindow.classList.remove('theater-mode'); // Disable theater mode if forcing fullscreen
             btnTheater.classList.remove('active-state');
+            
+            // Recalculate aspect bounds if fullscreen changes dimensions
+            if (currentArIndex > 0) applyVideoTransforms('aspect', currentArIndex);
+            if (currentCropIndex > 0) applyVideoTransforms('crop', currentCropIndex);
+            
             resetIdleTimer();
         } else {
             btnFullscreen.classList.remove('active-state');
             clearTimeout(idleTimer);
             appWindow.classList.remove('idle');
+            
+            if (currentArIndex > 0) applyVideoTransforms('aspect', currentArIndex);
+            if (currentCropIndex > 0) applyVideoTransforms('crop', currentCropIndex);
         }
+    });
+
+    // Window resize handler for bounds recalculation
+    window.addEventListener('resize', () => {
+        if (currentArIndex > 0) applyVideoTransforms('aspect', currentArIndex);
+        if (currentCropIndex > 0) applyVideoTransforms('crop', currentCropIndex);
     });
 
     // --- Event Listeners ---
 
-    // File Input
+    // File Inputs
     btnAddMedia.onclick = () => fileInput.click();
     fileInput.onchange = (e) => loadFiles(e.target.files);
+    btnSubtitle.onclick = () => subtitleInput.click();
 
     // Drag and Drop
     playlistSidebar.addEventListener('dragover', (e) => {
@@ -815,6 +939,10 @@
             case 'a':
                 e.preventDefault();
                 toggleAspectRatio();
+                break;
+            case 'c':
+                e.preventDefault();
+                toggleCrop();
                 break;
             case 'm':
                 toggleMute();
