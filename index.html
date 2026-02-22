@@ -3,7 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HTML5 Media Player</title>
+    <title>VLC Web</title>
+    <!-- Traffic Cone Favicon -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpolygon points='50,15 22,85 78,85' fill='%23ff8800'/%3E%3Cpolygon points='42,35 58,35 62,48 38,48' fill='%23ffffff'/%3E%3Cpolygon points='32,65 68,65 73,78 27,78' fill='%23ffffff'/%3E%3C/svg%3E">
     <style>
         /* CSS Reset & Font */
         * {
@@ -62,10 +64,51 @@
             height: 100%;
             max-width: 100%;
             max-height: 100%;
-            background-color: #000;
+            background-color: transparent;
             outline: none;
             object-fit: contain;
             transition: max-width 0.1s, max-height 0.1s;
+        }
+
+        /* Empty State Background */
+        #empty-state {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: radial-gradient(circle at center, #2a2a2a 0%, #111 100%);
+            color: #eee;
+            z-index: 10;
+            text-align: center;
+            padding: 20px;
+        }
+
+        @keyframes float-cone {
+            0% { transform: translateY(0); filter: drop-shadow(0 15px 15px rgba(0,0,0,0.6)); }
+            50% { transform: translateY(-15px); filter: drop-shadow(0 30px 20px rgba(0,0,0,0.3)); }
+            100% { transform: translateY(0); filter: drop-shadow(0 15px 15px rgba(0,0,0,0.6)); }
+        }
+
+        .animated-cone {
+            animation: float-cone 4s ease-in-out infinite;
+            width: 150px;
+            height: 150px;
+        }
+
+        #empty-state h2 {
+            margin-top: 30px;
+            font-weight: 500;
+            font-size: 26px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+            letter-spacing: 0.5px;
+        }
+
+        #empty-state p {
+            margin-top: 10px;
+            color: #aaa;
+            font-size: 15px;
         }
 
         /* VLC Style Subtitles */
@@ -450,6 +493,9 @@
             background-image: linear-gradient(to bottom, #666 0%, #333 100%);
             border-color: #111;
         }
+        body.dark-mode #empty-state {
+            background: radial-gradient(circle at center, #1a1a1a 0%, #000 100%);
+        }
     </style>
 </head>
 <body>
@@ -457,6 +503,36 @@
 <div id="app-window">
     <div id="main-area">
         <div id="video-container" title="Double click to toggle fullscreen">
+            <!-- Animated SVG Empty State Overlay -->
+            <div id="empty-state">
+                <svg class="animated-cone" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <linearGradient id="coneGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#ffaa00" />
+                            <stop offset="100%" stop-color="#d35400" />
+                        </linearGradient>
+                        <linearGradient id="baseGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                            <stop offset="0%" stop-color="#e0e0e0" />
+                            <stop offset="50%" stop-color="#ffffff" />
+                            <stop offset="100%" stop-color="#d0d0d0" />
+                        </linearGradient>
+                    </defs>
+                    <!-- Cone Base Bottom -->
+                    <ellipse cx="50" cy="88" rx="40" ry="8" fill="#111"/>
+                    <!-- Cone Base Top -->
+                    <ellipse cx="50" cy="85" rx="36" ry="7" fill="url(#baseGrad)"/>
+                    <!-- Cone Body -->
+                    <polygon points="50,15 22,85 78,85" fill="url(#coneGrad)"/>
+                    <!-- White Stripes -->
+                    <polygon points="42,35 58,35 62,48 38,48" fill="#ffffff"/>
+                    <polygon points="32,65 68,65 73,78 27,78" fill="#ffffff"/>
+                    <!-- Subtle shadow on cone body for 3D effect -->
+                    <polygon points="50,15 22,85 50,85" fill="#000000" opacity="0.15"/>
+                </svg>
+                <h2>No Media Loaded</h2>
+                <p>Drag & Drop files into the Playlist or click '+' to add media.</p>
+            </div>
+            
             <video id="player" playsinline></video>
             <div id="osd-text"></div>
         </div>
@@ -514,7 +590,7 @@
 
             <!-- Center Controls: Now Playing -->
             <div class="control-group" style="flex: 1; justify-content: center;">
-                <div id="now-playing-text">VLC Web Player</div>
+                <div id="now-playing-text">VLC Web</div>
             </div>
 
             <!-- Right Controls: Playlist, Subtitles, Loop, Vol -->
@@ -564,6 +640,7 @@
     const videoContainer = document.getElementById('video-container');
     const controlsArea = document.getElementById('controls-area');
     const osdText = document.getElementById('osd-text');
+    const emptyState = document.getElementById('empty-state');
     const fileInput = document.getElementById('file-input');
     const subtitleInput = document.getElementById('subtitle-input');
     const playlistItemsContainer = document.getElementById('playlist-items');
@@ -710,7 +787,12 @@
             player.src = "";
             let oldTrack = player.querySelector('track');
             if (oldTrack) oldTrack.remove();
-            nowPlayingText.textContent = "VLC Web Player";
+            
+            // Revert titles and show empty state
+            nowPlayingText.textContent = "VLC Web";
+            document.title = "VLC Web";
+            emptyState.style.display = 'flex';
+            
             stop();
         } else if (currentIndex === index) {
             // We removed the item currently playing
@@ -754,7 +836,14 @@
         }
 
         currentIndex = index;
+        
+        // Hide empty state background
+        emptyState.style.display = 'none';
+
+        // Update UI Text & Page Title dynamically
         nowPlayingText.textContent = item.file.name;
+        document.title = `${item.file.name} - VLC Web`;
+        
         updatePlaylistUI();
         
         // Reset crop and aspect ratio for new item
