@@ -61,15 +61,24 @@
             overflow: hidden;
         }
 
+        /* Crop Wrapper isolates scale and crop from video aspect ratio */
+        #crop-wrapper {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
         video {
-            /* Sizing is controlled by JS for accurate AR/Crop constraints */
             width: 100%;
             height: 100%;
             max-width: 100%;
             max-height: 100%;
             background-color: transparent;
             object-fit: contain;
-            transition: max-width 0.1s, max-height 0.1s;
         }
 
         /* Empty State Background */
@@ -138,7 +147,11 @@
             font-size: 15px;
         }
 
-        /* Subtitles */
+        /* Subtitles Positioning Fix */
+        video::-webkit-media-text-track-display {
+            margin-bottom: 80px; /* Safely lifts subtitles above the controls area */
+        }
+
         ::cue {
             color: #ffffff;
             background-color: transparent;
@@ -524,7 +537,7 @@
             border-color: #01162d;
             color: white;
             text-shadow: 0 1px 0 rgba(0,0,0,0.4);
-            box-shadow: 0 1px 1px rgba(0,0,0,0.3) inset;
+            box-shadow: 0 1px 1px rgba(255,255,255,0.3) inset;
         }
         body.dark-mode .mac-btn.active-state svg {
             fill: white;
@@ -600,6 +613,7 @@
                 <li><strong>F / Double Click:</strong> Toggle Fullscreen</li>
                 <li><strong>T:</strong> Toggle Theater Mode</li>
                 <li><strong>Z:</strong> Cycle Zoom Modes (Fit, Fill, Original)</li>
+                <li><strong>Alt + / Alt -:</strong> Custom Zoom In / Out</li>
                 <li><strong>A / C:</strong> Toggle Aspect Ratio / Crop</li>
                 <li><strong>M:</strong> Toggle Mute</li>
                 <li><strong>[ / ]:</strong> Decrease / Increase Speed</li>
@@ -644,7 +658,9 @@
                 <p>Drag & Drop files into the Playlist or click '+' to add media.</p>
             </div>
             
-            <video id="player" playsinline></video>
+            <div id="crop-wrapper">
+                <video id="player" playsinline></video>
+            </div>
             <div id="osd-text"></div>
         </div>
         
@@ -762,10 +778,12 @@
 
     const zoomModes = ['Fit Screen', 'Fill Screen', 'Original Size'];
     let currentZoomIndex = 0;
+    let customZoom = null; // Percentage zoom state (overrides preset modes)
 
     // --- DOM Elements ---
     const appWindow = document.getElementById('app-window');
     const player = document.getElementById('player');
+    const cropWrapper = document.getElementById('crop-wrapper');
     const videoContainer = document.getElementById('video-container');
     const controlsArea = document.getElementById('controls-area');
     const osdText = document.getElementById('osd-text');
@@ -985,10 +1003,11 @@
         
         updatePlaylistUI();
         
-        // Reset crop, aspect ratio, and zoom for new item
+        // Reset transforms
         currentArIndex = 0;
         currentCropIndex = 0;
         currentZoomIndex = 0;
+        customZoom = null;
         applyVideoTransforms('default');
 
         player.play().catch(e => console.log("Playback prevented:", e));
@@ -1060,54 +1079,75 @@
     }
 
     // --- Aspect Ratio, Crop & Zoom Engine ---
-    // Safely layers overlapping transformations simultaneously 
+    // Decoupled architecture:
+    // Aspect Ratio -> modifies <video> stretch (objectFit/aspectRatio)
+    // Crop -> modifies #crop-wrapper bounding box (aspectRatio/maxWidth)
+    // Zoom -> modifies #crop-wrapper scale (transform)
+    
     function applyVideoTransforms(triggerSource) {
         const ar = aspectRatios[currentArIndex];
         const crop = aspectRatios[currentCropIndex];
-        const zoom = zoomModes[currentZoomIndex];
+        const zoomMode = zoomModes[currentZoomIndex];
 
-        let objFit = 'contain';
-        let aspRatio = 'auto';
-
-        // 1. Apply Stretch Aspect Ratio
-        if (ar !== 'Default') {
-            aspRatio = ar.replace(':', '/');
-            objFit = 'fill'; 
-        }
-
-        // 2. Apply Crop (Overrides stretch to ensure visual cover)
-        if (crop !== 'Default') {
-            aspRatio = crop.replace(':', '/');
-            objFit = 'cover'; 
-        }
-
-        // 3. Apply Zoom Scale (Manages external container fit)
-        if (zoom === 'Fill Screen') {
-            player.style.width = '100vw';
-            player.style.height = '100vh';
-            player.style.maxWidth = '100vw';
-            player.style.maxHeight = '100vh';
-            objFit = 'cover';
-        } else if (zoom === 'Original Size') {
-            player.style.width = 'auto';
-            player.style.height = 'auto';
-            player.style.maxWidth = 'none';
-            player.style.maxHeight = 'none';
-            objFit = 'none';
+        // 1. Apply Aspect Ratio (Video element stretch)
+        if (ar === 'Default') {
+            player.style.aspectRatio = 'auto';
+            player.style.objectFit = (crop === 'Default') ? 'contain' : 'cover';
         } else {
-            // Fit Screen
-            player.style.width = '100%';
-            player.style.height = '100%';
-            player.style.maxWidth = '100%';
-            player.style.maxHeight = '100%';
+            player.style.aspectRatio = ar.replace(':', '/');
+            player.style.objectFit = 'fill';
         }
 
-        player.style.objectFit = objFit;
-        player.style.aspectRatio = aspRatio;
+        // 2. Apply Crop (Wrapper container bounds)
+        if (crop === 'Default') {
+            cropWrapper.style.aspectRatio = 'auto';
+            cropWrapper.style.maxWidth = '100%';
+            cropWrapper.style.maxHeight = '100%';
+        } else {
+            const [w, h] = crop.split(':');
+            cropWrapper.style.aspectRatio = `${w}/${h}`;
+            cropWrapper.style.maxWidth = `calc(100vh * (${w} / ${h}))`;
+            cropWrapper.style.maxHeight = `calc(100vw * (${h} / ${w}))`;
+            // Ensure video covers the letterboxed crop area if no explicit AR stretches it
+            if (ar === 'Default') {
+                player.style.objectFit = 'cover';
+            }
+        }
 
+        // 3. Apply Zoom (Scale transformation on wrapper)
+        let scale = 1;
+        if (customZoom !== null) {
+            scale = customZoom;
+        } else {
+            if (zoomMode === 'Fit Screen') {
+                scale = 1;
+            } else if (zoomMode === 'Fill Screen') {
+                // Calculate necessary scale factor to fill the parent container completely
+                const cw = cropWrapper.offsetWidth || videoContainer.offsetWidth;
+                const ch = cropWrapper.offsetHeight || videoContainer.offsetHeight;
+                if (cw > 0 && ch > 0) {
+                    const scaleX = videoContainer.offsetWidth / cw;
+                    const scaleY = videoContainer.offsetHeight / ch;
+                    scale = Math.max(scaleX, scaleY);
+                }
+            } else if (zoomMode === 'Original Size') {
+                const vw = player.videoWidth;
+                const cw = cropWrapper.offsetWidth;
+                if (vw && cw) {
+                    scale = vw / cw;
+                }
+            }
+        }
+
+        cropWrapper.style.transform = `scale(${scale})`;
+
+        // OSD Notifications
         if (triggerSource === 'aspect') showOSD(`Aspect Ratio: ${ar}`);
         else if (triggerSource === 'crop') showOSD(`Crop: ${crop}`);
-        else if (triggerSource === 'zoom') showOSD(`Zoom: ${zoom}`);
+        else if (triggerSource === 'zoom') {
+            if (customZoom !== null) showOSD(`Zoom: ${Math.round(customZoom * 100)}%`);
+            else showOSD(`Zoom: ${zoomMode}`);
+        }
     }
 
     function toggleAspectRatio() {
@@ -1121,6 +1161,7 @@
     }
 
     function toggleZoom() {
+        customZoom = null; // Clear percentage zoom to restore preset cycling
         currentZoomIndex = (currentZoomIndex + 1) % zoomModes.length;
         applyVideoTransforms('zoom');
     }
@@ -1129,7 +1170,6 @@
     
     function srtToVtt(srtContent) {
         let vtt = 'WEBVTT\n\n';
-        // Replace SRT comma milliseconds with VTT dot milliseconds
         vtt += srtContent.replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2');
         return vtt;
     }
@@ -1158,7 +1198,6 @@
             const blob = new Blob([content], { type: 'text/vtt' });
             item.subtitleUrl = URL.createObjectURL(blob);
 
-            // Apply directly since this is the currently playing item
             let oldTrack = player.querySelector('track');
             if (oldTrack) oldTrack.remove();
 
@@ -1207,8 +1246,12 @@
 
     btnAudioTrack.addEventListener('click', () => {
         const tracks = player.audioTracks;
-        if (!tracks || tracks.length <= 1) {
-            showOSD("No Alternate Audio Tracks");
+        if (!tracks) {
+            showOSD("Audio Tracks API unsupported by this Browser/Format");
+            return;
+        }
+        if (tracks.length <= 1) {
+            showOSD("No Alternate Audio Tracks found");
             return;
         }
 
@@ -1216,13 +1259,17 @@
         for (let i = 0; i < tracks.length; i++) {
             if (tracks[i].enabled) {
                 currentlyEnabledIndex = i;
-                tracks[i].enabled = false;
                 break;
             }
         }
 
         let nextIndex = (currentlyEnabledIndex + 1) % tracks.length;
-        tracks[nextIndex].enabled = true;
+        
+        // Standard spec states we should enable the new track first
+        for (let i = 0; i < tracks.length; i++) {
+            tracks[i].enabled = (i === nextIndex);
+        }
+        
         showOSD(`Audio Track: ${tracks[nextIndex].label || (nextIndex + 1)}`);
     });
 
@@ -1278,7 +1325,6 @@
         appWindow.classList.remove('idle');
         clearTimeout(idleTimer);
 
-        // Only auto-hide controls in theater or fullscreen mode
         if (document.fullscreenElement || appWindow.classList.contains('theater-mode')) {
             idleTimer = setTimeout(() => {
                 appWindow.classList.add('idle');
@@ -1286,7 +1332,6 @@
         }
     }
 
-    // Prevent hiding while hovering directly over controls
     controlsArea.addEventListener('mouseenter', () => {
         clearTimeout(idleTimer);
         appWindow.classList.remove('idle');
@@ -1299,25 +1344,19 @@
     document.addEventListener('fullscreenchange', () => {
         if (document.fullscreenElement) {
             btnFullscreen.classList.add('active-state');
-            appWindow.classList.remove('theater-mode'); // Disable theater mode if forcing fullscreen
+            appWindow.classList.remove('theater-mode');
             btnTheater.classList.remove('active-state');
-            
-            // Recalculate aspect bounds if fullscreen changes dimensions
-            applyVideoTransforms('zoom');
-            
-            resetIdleTimer();
         } else {
             btnFullscreen.classList.remove('active-state');
-            clearTimeout(idleTimer);
             appWindow.classList.remove('idle');
-            
-            applyVideoTransforms('zoom');
         }
+        applyVideoTransforms('zoom');
+        resetIdleTimer();
     });
 
     // Window resize handler for bounds recalculation
     window.addEventListener('resize', () => {
-        if (currentArIndex > 0 || currentCropIndex > 0 || currentZoomIndex > 0) {
+        if (currentArIndex > 0 || currentCropIndex > 0 || currentZoomIndex > 0 || customZoom !== null) {
             applyVideoTransforms();
         }
     });
@@ -1357,6 +1396,7 @@
     player.addEventListener('loadedmetadata', () => {
         timeline.max = player.duration;
         totalTimeDisplay.textContent = formatTime(player.duration);
+        applyVideoTransforms(); // Reapply transformations to ensure constraints apply post-load
     });
     player.addEventListener('ended', playNext);
 
@@ -1412,7 +1452,6 @@
     btnHelp.onclick = () => helpModal.classList.remove('hidden');
     btnCloseHelp.onclick = () => helpModal.classList.add('hidden');
 
-    // Close modals on clicking overlay background
     window.addEventListener('click', (e) => {
         if (e.target === aboutModal) aboutModal.classList.add('hidden');
         if (e.target === helpModal) helpModal.classList.add('hidden');
@@ -1420,18 +1459,31 @@
 
     // Keyboard Shortcuts (VLC Mappings)
     window.addEventListener('keydown', (e) => {
-        // Prevent shortcuts if interacting with input fields
         if (e.target.tagName.toLowerCase() === 'input' && e.target.type !== 'range') return;
 
-        // Close modals on Escape
         if (e.key === 'Escape') {
             aboutModal.classList.add('hidden');
             helpModal.classList.add('hidden');
             return;
         }
 
-        // Prevent shortcuts if a modal is open
         if (!aboutModal.classList.contains('hidden') || !helpModal.classList.contains('hidden')) return;
+
+        // Alt Shortcuts
+        if (e.altKey) {
+            if (e.key === '=' || e.key === '+') {
+                e.preventDefault();
+                customZoom = (customZoom === null ? 1 : customZoom) + 0.1;
+                applyVideoTransforms('zoom');
+                return;
+            }
+            if (e.key === '-') {
+                e.preventDefault();
+                customZoom = Math.max(0.1, (customZoom === null ? 1 : customZoom) - 0.1);
+                applyVideoTransforms('zoom');
+                return;
+            }
+        }
 
         switch(e.key.toLowerCase()) {
             case ' ':
