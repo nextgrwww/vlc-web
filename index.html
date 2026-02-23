@@ -61,7 +61,7 @@
             overflow: hidden;
         }
 
-        /* Crop Wrapper isolates scale and crop from video aspect ratio */
+        /* Nested Wrappers for stacking Video Transforms */
         #crop-wrapper {
             width: 100%;
             height: 100%;
@@ -72,6 +72,14 @@
             transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
+        #ar-wrapper {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
         video {
             width: 100%;
             height: 100%;
@@ -79,6 +87,30 @@
             max-height: 100%;
             background-color: transparent;
             object-fit: contain;
+        }
+
+        /* Subtitle Engine Overrides */
+        video::-webkit-media-text-track-display,
+        ::cue {
+            display: none !important; /* Hide native rendering */
+            color: transparent;
+            background: transparent;
+        }
+
+        #custom-subtitles {
+            position: absolute;
+            bottom: 80px; /* Consistently above bottom controls */
+            left: 50%;
+            transform: translateX(-50%);
+            width: 90%;
+            text-align: center;
+            color: #ffffff;
+            text-shadow: 2px 2px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 0px 2px 0 #000, 2px 0px 0 #000, 0px -2px 0 #000, -2px 0px 0 #000;
+            font-family: Arial, sans-serif;
+            font-size: 28px;
+            font-weight: bold;
+            pointer-events: none;
+            z-index: 40;
         }
 
         /* Empty State Background */
@@ -145,20 +177,6 @@
             margin-top: 10px;
             color: #aaa;
             font-size: 15px;
-        }
-
-        /* Subtitles Positioning Fix */
-        video::-webkit-media-text-track-display {
-            margin-bottom: 80px; /* Safely lifts subtitles above the controls area */
-        }
-
-        ::cue {
-            color: #ffffff;
-            background-color: transparent;
-            text-shadow: 2px 2px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 0px 2px 0 #000, 2px 0px 0 #000, 0px -2px 0 #000, -2px 0px 0 #000;
-            font-family: Arial, sans-serif;
-            font-size: 28px;
-            font-weight: bold;
         }
 
         /* OSD (On Screen Display) */
@@ -659,8 +677,12 @@
             </div>
             
             <div id="crop-wrapper">
-                <video id="player" playsinline></video>
+                <div id="ar-wrapper">
+                    <video id="player" playsinline></video>
+                </div>
             </div>
+            <!-- Custom subtitle overlay decoupled from video transformations -->
+            <div id="custom-subtitles"></div>
             <div id="osd-text"></div>
         </div>
         
@@ -779,11 +801,14 @@
     const zoomModes = ['Fit Screen', 'Fill Screen', 'Original Size'];
     let currentZoomIndex = 0;
     let customZoom = null; // Percentage zoom state (overrides preset modes)
+    let currentSubtitleText = ''; // Memory for subtitle rendering
 
     // --- DOM Elements ---
     const appWindow = document.getElementById('app-window');
     const player = document.getElementById('player');
     const cropWrapper = document.getElementById('crop-wrapper');
+    const arWrapper = document.getElementById('ar-wrapper');
+    const customSubtitles = document.getElementById('custom-subtitles');
     const videoContainer = document.getElementById('video-container');
     const controlsArea = document.getElementById('controls-area');
     const osdText = document.getElementById('osd-text');
@@ -987,8 +1012,10 @@
             track.default = true;
             player.appendChild(track);
 
+            // Setting to 'hidden' loads the cues in JS memory but allows us to render via #custom-subtitles 
+            // without scaling constraints from the video tag.
             if (player.textTracks && player.textTracks.length > 0) {
-                player.textTracks[0].mode = 'showing';
+                player.textTracks[0].mode = 'hidden';
             }
         }
 
@@ -1010,6 +1037,10 @@
         customZoom = null;
         applyVideoTransforms('default');
 
+        // Clear subtitle overlay
+        customSubtitles.innerHTML = '';
+        currentSubtitleText = '';
+
         player.play().catch(e => console.log("Playback prevented:", e));
     }
 
@@ -1028,6 +1059,8 @@
         player.pause();
         player.currentTime = 0;
         btnPlay.querySelector('svg').innerHTML = iconPlay;
+        customSubtitles.innerHTML = '';
+        currentSubtitleText = '';
         showOSD("Stopped");
     }
 
@@ -1079,42 +1112,59 @@
     }
 
     // --- Aspect Ratio, Crop & Zoom Engine ---
-    // Decoupled architecture:
-    // Aspect Ratio -> modifies <video> stretch (objectFit/aspectRatio)
-    // Crop -> modifies #crop-wrapper bounding box (aspectRatio/maxWidth)
-    // Zoom -> modifies #crop-wrapper scale (transform)
+    // Completely decoupled architecture allowing perfect layering:
+    // Aspect Ratio -> modifies inner #ar-wrapper element stretch bounds
+    // Crop -> modifies outer #crop-wrapper bounding box (mask)
+    // Zoom -> modifies #crop-wrapper overall scale factor (transform)
     
     function applyVideoTransforms(triggerSource) {
         const ar = aspectRatios[currentArIndex];
         const crop = aspectRatios[currentCropIndex];
         const zoomMode = zoomModes[currentZoomIndex];
 
-        // 1. Apply Aspect Ratio (Video element stretch)
-        if (ar === 'Default') {
-            player.style.aspectRatio = 'auto';
-            player.style.objectFit = (crop === 'Default') ? 'contain' : 'cover';
-        } else {
-            player.style.aspectRatio = ar.replace(':', '/');
-            player.style.objectFit = 'fill';
-        }
-
-        // 2. Apply Crop (Wrapper container bounds)
+        // 1. Setup Outer Crop Wrapper (The window masking box)
         if (crop === 'Default') {
             cropWrapper.style.aspectRatio = 'auto';
             cropWrapper.style.maxWidth = '100%';
             cropWrapper.style.maxHeight = '100%';
         } else {
-            const [w, h] = crop.split(':');
-            cropWrapper.style.aspectRatio = `${w}/${h}`;
-            cropWrapper.style.maxWidth = `calc(100vh * (${w} / ${h}))`;
-            cropWrapper.style.maxHeight = `calc(100vw * (${h} / ${w}))`;
-            // Ensure video covers the letterboxed crop area if no explicit AR stretches it
-            if (ar === 'Default') {
-                player.style.objectFit = 'cover';
+            const [cw, ch] = crop.split(':');
+            cropWrapper.style.aspectRatio = `${cw}/${ch}`;
+            cropWrapper.style.maxWidth = `calc(100vh * (${cw} / ${ch}))`;
+            cropWrapper.style.maxHeight = `calc(100vw * (${ch} / ${cw}))`;
+        }
+
+        // 2. Setup Inner Aspect Ratio Wrapper (Stretches the video container)
+        if (ar === 'Default') {
+            arWrapper.style.aspectRatio = 'auto';
+            arWrapper.style.minWidth = '0';
+            arWrapper.style.minHeight = '0';
+            arWrapper.style.width = '100%';
+            arWrapper.style.height = '100%';
+            player.style.objectFit = (crop === 'Default') ? 'contain' : 'cover';
+        } else {
+            const [aw, ah] = ar.split(':');
+            arWrapper.style.aspectRatio = `${aw}/${ah}`;
+            player.style.objectFit = 'fill';
+            
+            if (crop !== 'Default') {
+                // Video AR container must cover the crop mask box
+                arWrapper.style.minWidth = '100%';
+                arWrapper.style.minHeight = '100%';
+                arWrapper.style.width = 'auto';
+                arWrapper.style.height = 'auto';
+            } else {
+                // Video AR container naturally constraints inside full viewport
+                arWrapper.style.maxWidth = `calc(100vh * (${aw} / ${ah}))`;
+                arWrapper.style.maxHeight = `calc(100vw * (${ah} / ${aw}))`;
+                arWrapper.style.minWidth = '0';
+                arWrapper.style.minHeight = '0';
+                arWrapper.style.width = '100%';
+                arWrapper.style.height = '100%';
             }
         }
 
-        // 3. Apply Zoom (Scale transformation on wrapper)
+        // 3. Setup Zoom (Scale transformation exclusively on the outer wrapper)
         let scale = 1;
         if (customZoom !== null) {
             scale = customZoom;
@@ -1122,7 +1172,7 @@
             if (zoomMode === 'Fit Screen') {
                 scale = 1;
             } else if (zoomMode === 'Fill Screen') {
-                // Calculate necessary scale factor to fill the parent container completely
+                // Dynamically calculates scale required to fully fill screen bounds
                 const cw = cropWrapper.offsetWidth || videoContainer.offsetWidth;
                 const ch = cropWrapper.offsetHeight || videoContainer.offsetHeight;
                 if (cw > 0 && ch > 0) {
@@ -1161,7 +1211,7 @@
     }
 
     function toggleZoom() {
-        customZoom = null; // Clear percentage zoom to restore preset cycling
+        customZoom = null; // Clear manual percentage zoom to restore preset cycling behavior
         currentZoomIndex = (currentZoomIndex + 1) % zoomModes.length;
         applyVideoTransforms('zoom');
     }
@@ -1210,7 +1260,7 @@
             player.appendChild(track);
 
             if (player.textTracks && player.textTracks.length > 0) {
-                player.textTracks[0].mode = 'showing';
+                player.textTracks[0].mode = 'hidden'; // Keep hidden natively, trigger custom engine
             }
 
             showOSD("Subtitle Loaded");
@@ -1226,20 +1276,22 @@
             return;
         }
 
-        let currentlyShowingIndex = -1;
+        let currentlyActiveIndex = -1;
         for (let i = 0; i < tracks.length; i++) {
-            if (tracks[i].mode === 'showing') {
-                currentlyShowingIndex = i;
-                tracks[i].mode = 'hidden';
+            if (tracks[i].mode === 'hidden' || tracks[i].mode === 'showing') {
+                currentlyActiveIndex = i;
+                tracks[i].mode = 'disabled';
                 break;
             }
         }
 
-        let nextIndex = currentlyShowingIndex + 1;
+        let nextIndex = currentlyActiveIndex + 1;
         if (nextIndex >= tracks.length) {
             showOSD("Subtitles Disabled");
+            customSubtitles.innerHTML = '';
+            currentSubtitleText = '';
         } else {
-            tracks[nextIndex].mode = 'showing';
+            tracks[nextIndex].mode = 'hidden'; // Route to custom engine
             showOSD(`Subtitle Track: ${tracks[nextIndex].label || (nextIndex + 1)}`);
         }
     });
@@ -1265,7 +1317,7 @@
 
         let nextIndex = (currentlyEnabledIndex + 1) % tracks.length;
         
-        // Standard spec states we should enable the new track first
+        // Standard Web API dictates we should enable target track to cleanly flip audio 
         for (let i = 0; i < tracks.length; i++) {
             tracks[i].enabled = (i === nextIndex);
         }
@@ -1279,7 +1331,7 @@
         
         let track = null;
         for (let i = 0; i < tracks.length; i++) {
-            if (tracks[i].mode === 'showing') {
+            if (tracks[i].mode === 'hidden' || tracks[i].mode === 'showing') {
                 track = tracks[i];
                 break;
             }
@@ -1392,7 +1444,33 @@
             timeline.value = player.currentTime;
         }
         currentTimeDisplay.textContent = formatTime(player.currentTime);
+
+        // Custom Subtitle Overlay Execution
+        let activeTrack = null;
+        if (player.textTracks) {
+            for (let i = 0; i < player.textTracks.length; i++) {
+                if (player.textTracks[i].mode === 'hidden' || player.textTracks[i].mode === 'showing') {
+                    activeTrack = player.textTracks[i];
+                    // Ensure the browser doesn't draw it natively while we map it
+                    if (player.textTracks[i].mode === 'showing') player.textTracks[i].mode = 'hidden';
+                    break;
+                }
+            }
+        }
+
+        let newText = '';
+        if (activeTrack && activeTrack.activeCues && activeTrack.activeCues.length > 0) {
+            for(let i = 0; i < activeTrack.activeCues.length; i++) {
+                newText += activeTrack.activeCues[i].text.replace(/\n/g, '<br>') + (i < activeTrack.activeCues.length - 1 ? '<br>' : '');
+            }
+        }
+
+        if (newText !== currentSubtitleText) {
+            currentSubtitleText = newText;
+            customSubtitles.innerHTML = newText;
+        }
     });
+
     player.addEventListener('loadedmetadata', () => {
         timeline.max = player.duration;
         totalTimeDisplay.textContent = formatTime(player.duration);
@@ -1469,7 +1547,7 @@
 
         if (!aboutModal.classList.contains('hidden') || !helpModal.classList.contains('hidden')) return;
 
-        // Alt Shortcuts
+        // Alt Shortcuts for Manual Zoom
         if (e.altKey) {
             if (e.key === '=' || e.key === '+') {
                 e.preventDefault();
