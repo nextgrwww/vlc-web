@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Lume Media Player</title>
-    <!-- Lume Media Player SVG Favicon -->
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%238A2387'/%3E%3Cstop offset='50%25' stop-color='%23E94057'/%3E%3Cstop offset='100%25' stop-color='%23F27121'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='100' height='100' rx='25' fill='url(%23g)'/%3E%3Cpolygon points='35,25 35,75 75,50' fill='%23ffffff'/%3E%3C/svg%3E">
+    <!-- Lume Media Player SVG Favicon (VLC Orange) -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%23ff8800'/%3E%3Cstop offset='50%25' stop-color='%23ff6600'/%3E%3Cstop offset='100%25' stop-color='%23e65c00'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='100' height='100' rx='25' fill='url(%23g)'/%3E%3Cpolygon points='35,25 35,75 75,50' fill='%23ffffff'/%3E%3C/svg%3E">
     <style>
         /* CSS Reset & Font */
         * {
@@ -113,7 +113,7 @@
             z-index: 40;
         }
 
-        /* Empty State Background */
+        /* Empty State Background (Light Mode Default) */
         #empty-state {
             position: absolute;
             top: 0; left: 0; right: 0; bottom: 0;
@@ -121,8 +121,8 @@
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            background: radial-gradient(circle at center, #2a2a2a 0%, #111 100%);
-            color: #eee;
+            background: radial-gradient(circle at center, #ffffff 0%, #e0e0e0 100%);
+            color: #333;
             z-index: 10;
             text-align: center;
             padding: 20px;
@@ -130,9 +130,9 @@
 
         /* Exciting Lume Animation Keyframes */
         @keyframes pulse-glow {
-            0% { transform: scale(1); filter: drop-shadow(0 10px 20px rgba(233, 64, 87, 0.4)); }
-            50% { transform: scale(1.05); filter: drop-shadow(0 20px 40px rgba(242, 113, 33, 0.8)); }
-            100% { transform: scale(1); filter: drop-shadow(0 10px 20px rgba(233, 64, 87, 0.4)); }
+            0% { transform: scale(1); filter: drop-shadow(0 10px 20px rgba(255, 136, 0, 0.3)); }
+            50% { transform: scale(1.05); filter: drop-shadow(0 20px 40px rgba(255, 136, 0, 0.6)); }
+            100% { transform: scale(1); filter: drop-shadow(0 10px 20px rgba(255, 136, 0, 0.3)); }
         }
 
         @keyframes orbit {
@@ -166,16 +166,16 @@
             margin-top: 30px;
             font-weight: 500;
             font-size: 26px;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+            text-shadow: 0 1px 2px rgba(0,0,0,0.1);
             letter-spacing: 0.5px;
-            background: -webkit-linear-gradient(45deg, #E94057, #F27121);
+            background: -webkit-linear-gradient(45deg, #ff8800, #e65c00);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
 
         #empty-state p {
             margin-top: 10px;
-            color: #aaa;
+            color: #666;
             font-size: 15px;
         }
 
@@ -221,6 +221,11 @@
             color: #333;
             text-shadow: 0 1px 0 rgba(255,255,255,0.8);
             box-shadow: 0 1px 0 rgba(255,255,255,0.5) inset;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 4px;
         }
 
         /* Mavericks Buttons */
@@ -589,9 +594,15 @@
             background-image: linear-gradient(to bottom, #666 0%, #333 100%);
             border-color: #111;
         }
+        
+        /* Dark Mode overrides for Empty State & Modals */
         body.dark-mode #empty-state {
             background: radial-gradient(circle at center, #1a1a1a 0%, #000 100%);
+            color: #eee;
         }
+        body.dark-mode #empty-state p { color: #aaa; }
+        body.dark-mode #empty-state h2 { text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
+        
         body.dark-mode .modal-content {
             background-color: #2c2c2c;
             border-color: #000;
@@ -616,7 +627,7 @@
                 <!-- Play Button Polygon -->
                 <polygon points="85,75 85,125 125,100" fill="#ffffff" />
             </svg>
-            <h2 style="margin-top: 15px; font-weight: bold; font-size: 22px; background: -webkit-linear-gradient(45deg, #E94057, #F27121); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Lume Media Player</h2>
+            <h2 style="margin-top: 15px; font-weight: bold; font-size: 22px; background: -webkit-linear-gradient(45deg, #ff8800, #e65c00); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Lume Media Player</h2>
             <p style="margin-top: 10px; font-weight: bold; font-size: 14px;">Created by: Tekken (Hammad Ahmed)</p>
             <p style="margin-top: 10px; font-size: 13px; color: inherit; opacity: 0.8; line-height: 1.5;">Version 1.0<br>A modern, web-based local HTML5 media player providing an advanced cinematic playback experience.</p>
         </div>
@@ -649,17 +660,17 @@
                 <svg class="animated-logo" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
                     <defs>
                         <linearGradient id="lumeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                            <stop offset="0%" stop-color="#8A2387" />
-                            <stop offset="50%" stop-color="#E94057" />
-                            <stop offset="100%" stop-color="#F27121" />
+                            <stop offset="0%" stop-color="#ff8800" />
+                            <stop offset="50%" stop-color="#ff6600" />
+                            <stop offset="100%" stop-color="#e65c00" />
                         </linearGradient>
                         <linearGradient id="ringGrad" x1="100%" y1="0%" x2="0%" y2="100%">
-                            <stop offset="0%" stop-color="#00C9FF" />
-                            <stop offset="100%" stop-color="#92FE9D" />
+                            <stop offset="0%" stop-color="#ffffff" />
+                            <stop offset="100%" stop-color="#e0e0e0" />
                         </linearGradient>
                         <linearGradient id="orbitGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                            <stop offset="0%" stop-color="#F27121" />
-                            <stop offset="100%" stop-color="#E94057" />
+                            <stop offset="0%" stop-color="#e65c00" />
+                            <stop offset="100%" stop-color="#ff8800" />
                         </linearGradient>
                     </defs>
                     
@@ -673,7 +684,7 @@
                     <polygon points="85,75 85,125 125,100" fill="#ffffff" />
                 </svg>
                 <h2>No Media Loaded</h2>
-                <p>Drag & Drop files into the Playlist or click '+' to add media.</p>
+                <p>Drag & Drop files or folders into the Playlist to add media.</p>
             </div>
             
             <div id="crop-wrapper">
@@ -689,14 +700,24 @@
         <div id="playlist-sidebar">
             <div class="playlist-header">
                 <span>Playlist</span>
-                <button class="mac-btn" id="add-media-btn" title="Add Media">
-                    <svg width="12" height="12" viewBox="0 0 16 16"><path d="M7 7V2h2v5h5v2H9v5H7V9H2V7h5z"/></svg>
-                </button>
-                <input type="file" id="file-input" multiple accept="audio/*,video/*" class="hidden">
+                <div class="header-actions">
+                    <button class="mac-btn" id="add-folder-btn" title="Add Folder" style="padding: 4px 6px;">
+                        <svg width="12" height="12" viewBox="0 0 16 16"><path d="M1 3.5A1.5 1.5 0 0 1 2.5 2h3.88a1.5 1.5 0 0 1 1.06.44L8.5 3.5h5A1.5 1.5 0 0 1 15 5v7.5a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 1 12.5v-9z"/></svg>
+                    </button>
+                    <button class="mac-btn" id="add-media-btn" title="Add Media Files" style="padding: 4px 6px;">
+                        <svg width="12" height="12" viewBox="0 0 16 16"><path d="M7 7V2h2v5h5v2H9v5H7V9H2V7h5z"/></svg>
+                    </button>
+                    <button class="mac-btn" id="clear-playlist-btn" title="Clear Playlist" style="padding: 4px 6px;">
+                        <svg width="12" height="12" viewBox="0 0 16 16"><path d="M5.5 1a.5.5 0 0 0-.5.5v1h6v-1a.5.5 0 0 0-.5-.5h-5zM2 3v1h12V3H2zm1 2v8.5A1.5 1.5 0 0 0 4.5 15h7a1.5 1.5 0 0 0 1.5-1.5V5H3z"/></svg>
+                    </button>
+                </div>
+                <!-- Hidden inputs -->
+                <input type="file" id="file-input" multiple accept="audio/*,video/*,.srt,.vtt" class="hidden">
+                <input type="file" id="folder-input" webkitdirectory directory multiple class="hidden">
             </div>
             <ul id="playlist-items">
                 <li style="padding: 20px; text-align: center; color: #888; font-style: italic;">
-                    Drag & Drop media files here or click '+' to add.
+                    Drag & Drop files or folders here to add.
                 </li>
             </ul>
         </div>
@@ -787,7 +808,7 @@
 
 <script>
     // --- State ---
-    let playlist = []; // Array of { file: File, objectUrl: String|null, subtitleUrl: String|null }
+    let playlist = []; // Array of { file: File, objectUrl: String|null, subtitleUrl: String|null, pendingSubFile: File|null }
     let currentIndex = -1;
     let isLooping = false;
     let idleTimer;
@@ -814,6 +835,7 @@
     const osdText = document.getElementById('osd-text');
     const emptyState = document.getElementById('empty-state');
     const fileInput = document.getElementById('file-input');
+    const folderInput = document.getElementById('folder-input');
     const subtitleInput = document.getElementById('subtitle-input');
     const playlistItemsContainer = document.getElementById('playlist-items');
     const playlistSidebar = document.getElementById('playlist-sidebar');
@@ -838,6 +860,8 @@
     const btnLoop = document.getElementById('btn-loop');
     const btnMute = document.getElementById('btn-mute');
     const btnAddMedia = document.getElementById('add-media-btn');
+    const btnAddFolder = document.getElementById('add-folder-btn');
+    const btnClearPlaylist = document.getElementById('clear-playlist-btn');
     const btnAbout = document.getElementById('btn-about');
     const btnHelp = document.getElementById('btn-help');
 
@@ -876,7 +900,7 @@
 
     function updatePlaylistUI() {
         if (playlist.length === 0) {
-            playlistItemsContainer.innerHTML = '<li style="padding: 20px; text-align: center; color: #888; font-style: italic;">Drag & Drop media files here or click \'+\' to add.</li>';
+            playlistItemsContainer.innerHTML = '<li style="padding: 20px; text-align: center; color: #888; font-style: italic;">Drag & Drop files or folders here to add.</li>';
             return;
         }
 
@@ -918,20 +942,65 @@
         });
     }
 
-    function loadFiles(files) {
-        for (let i = 0; i < files.length; i++) {
-            if (files[i].type.startsWith('video/') || files[i].type.startsWith('audio/')) {
-                playlist.push({
-                    file: files[i],
-                    objectUrl: null,
-                    subtitleUrl: null
-                });
+    function loadFiles(fileList) {
+        let newMedia = [];
+        let newSubs = [];
+
+        // Separate Media vs Subtitle files
+        for (let i = 0; i < fileList.length; i++) {
+            const file = fileList[i];
+            const nameLower = file.name.toLowerCase();
+            if (file.type.startsWith('video/') || file.type.startsWith('audio/') || 
+                nameLower.endsWith('.mkv') || nameLower.endsWith('.mp4') || nameLower.endsWith('.webm') || nameLower.endsWith('.mp3')) {
+                newMedia.push(file);
+            } else if (nameLower.endsWith('.srt') || nameLower.endsWith('.vtt')) {
+                newSubs.push(file);
             }
         }
+
+        // Add media and auto-match subtitles based on identical base filename
+        newMedia.forEach(mediaFile => {
+            const baseName = mediaFile.name.substring(0, mediaFile.name.lastIndexOf('.')) || mediaFile.name;
+            
+            const matchedSub = newSubs.find(sub => {
+                const subBaseName = sub.name.substring(0, sub.name.lastIndexOf('.')) || sub.name;
+                return subBaseName === baseName;
+            });
+
+            playlist.push({
+                file: mediaFile,
+                objectUrl: null,
+                subtitleUrl: null,
+                pendingSubFile: matchedSub || null
+            });
+        });
+
         updatePlaylistUI();
         if (currentIndex === -1 && playlist.length > 0) {
             playItem(0);
         }
+    }
+
+    function clearPlaylist() {
+        playlist.forEach(item => {
+            if (item.objectUrl) URL.revokeObjectURL(item.objectUrl);
+            if (item.subtitleUrl) URL.revokeObjectURL(item.subtitleUrl);
+        });
+        playlist = [];
+        currentIndex = -1;
+        player.src = "";
+        
+        let oldTrack = player.querySelector('track');
+        if (oldTrack) oldTrack.remove();
+        
+        customSubtitles.innerHTML = '';
+        currentSubtitleText = '';
+        nowPlayingText.textContent = "Lume Media Player";
+        document.title = "Lume Media Player";
+        emptyState.style.display = 'flex';
+        
+        stop();
+        updatePlaylistUI();
     }
 
     function moveItem(index, direction) {
@@ -965,17 +1034,7 @@
         playlist.splice(index, 1);
 
         if (playlist.length === 0) {
-            currentIndex = -1;
-            player.src = "";
-            let oldTrack = player.querySelector('track');
-            if (oldTrack) oldTrack.remove();
-            
-            // Revert titles and show empty state
-            nowPlayingText.textContent = "Lume Media Player";
-            document.title = "Lume Media Player";
-            emptyState.style.display = 'flex';
-            
-            stop();
+            clearPlaylist();
         } else if (currentIndex === index) {
             // We removed the item currently playing
             currentIndex = -1; 
@@ -984,9 +1043,40 @@
         } else if (currentIndex > index) {
             // Shift index back to maintain correct tracking if an earlier item is removed
             currentIndex--;
+            updatePlaylistUI();
+        } else {
+            updatePlaylistUI();
         }
+    }
 
-        updatePlaylistUI();
+    // --- Subtitle Parser ---
+    function srtToVtt(srtContent) {
+        let vtt = 'WEBVTT\n\n';
+        vtt += srtContent.replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2');
+        return vtt;
+    }
+
+    function injectSubtitle(item, content, isSrt) {
+        if (isSrt) content = srtToVtt(content);
+        
+        if (item.subtitleUrl) URL.revokeObjectURL(item.subtitleUrl);
+        const blob = new Blob([content], { type: 'text/vtt' });
+        item.subtitleUrl = URL.createObjectURL(blob);
+
+        let oldTrack = player.querySelector('track');
+        if (oldTrack) oldTrack.remove();
+
+        const track = document.createElement('track');
+        track.kind = 'subtitles';
+        track.label = 'Custom Subtitles';
+        track.srclang = 'en';
+        track.src = item.subtitleUrl;
+        track.default = true;
+        player.appendChild(track);
+
+        if (player.textTracks && player.textTracks.length > 0) {
+            player.textTracks[0].mode = 'hidden'; // Hide native, let our overlay handle it
+        }
     }
 
     function playItem(index) {
@@ -999,11 +1089,21 @@
         }
         player.src = item.objectUrl;
 
-        // Handle item-specific subtitles
+        // Reset old tracks
         let oldTrack = player.querySelector('track');
         if (oldTrack) oldTrack.remove();
+        customSubtitles.innerHTML = '';
+        currentSubtitleText = '';
 
-        if (item.subtitleUrl) {
+        // Handle auto-loaded / specific subtitles
+        if (item.pendingSubFile && !item.subtitleUrl) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                injectSubtitle(item, e.target.result, item.pendingSubFile.name.toLowerCase().endsWith('.srt'));
+                showOSD("Auto-loaded Subtitle");
+            };
+            reader.readAsText(item.pendingSubFile);
+        } else if (item.subtitleUrl) {
             const track = document.createElement('track');
             track.kind = 'subtitles';
             track.label = 'Custom Subtitles';
@@ -1011,9 +1111,6 @@
             track.src = item.subtitleUrl;
             track.default = true;
             player.appendChild(track);
-
-            // Setting to 'hidden' loads the cues in JS memory but allows us to render via #custom-subtitles 
-            // without scaling constraints from the video tag.
             if (player.textTracks && player.textTracks.length > 0) {
                 player.textTracks[0].mode = 'hidden';
             }
@@ -1036,10 +1133,6 @@
         currentZoomIndex = 0;
         customZoom = null;
         applyVideoTransforms('default');
-
-        // Clear subtitle overlay
-        customSubtitles.innerHTML = '';
-        currentSubtitleText = '';
 
         player.play().catch(e => console.log("Playback prevented:", e));
     }
@@ -1112,10 +1205,6 @@
     }
 
     // --- Aspect Ratio, Crop & Zoom Engine ---
-    // Completely decoupled architecture allowing perfect layering:
-    // Aspect Ratio -> modifies inner #ar-wrapper element stretch bounds
-    // Crop -> modifies outer #crop-wrapper bounding box (mask)
-    // Zoom -> modifies #crop-wrapper overall scale factor (transform)
     
     function applyVideoTransforms(triggerSource) {
         const ar = aspectRatios[currentArIndex];
@@ -1216,14 +1305,7 @@
         applyVideoTransforms('zoom');
     }
 
-    // --- Subtitle & Audio Track Selectors ---
-    
-    function srtToVtt(srtContent) {
-        let vtt = 'WEBVTT\n\n';
-        vtt += srtContent.replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2');
-        return vtt;
-    }
-
+    // --- Subtitle Load from Button ---
     subtitleInput.addEventListener('change', (e) => {
         const file = e.target.files[0];
         if (!file || currentIndex === -1) {
@@ -1233,42 +1315,15 @@
 
         const reader = new FileReader();
         reader.onload = (e) => {
-            let content = e.target.result;
-            
-            if (file.name.toLowerCase().endsWith('.srt')) {
-                content = srtToVtt(content);
-            }
-
             const item = playlist[currentIndex];
-
-            if (item.subtitleUrl) {
-                URL.revokeObjectURL(item.subtitleUrl);
-            }
-
-            const blob = new Blob([content], { type: 'text/vtt' });
-            item.subtitleUrl = URL.createObjectURL(blob);
-
-            let oldTrack = player.querySelector('track');
-            if (oldTrack) oldTrack.remove();
-
-            const track = document.createElement('track');
-            track.kind = 'subtitles';
-            track.label = 'Custom Subtitles';
-            track.srclang = 'en';
-            track.src = item.subtitleUrl;
-            track.default = true;
-            player.appendChild(track);
-
-            if (player.textTracks && player.textTracks.length > 0) {
-                player.textTracks[0].mode = 'hidden'; // Keep hidden natively, trigger custom engine
-            }
-
+            injectSubtitle(item, e.target.result, file.name.toLowerCase().endsWith('.srt'));
             showOSD("Subtitle Loaded");
             subtitleInput.value = '';
         };
         reader.readAsText(file);
     });
 
+    // --- Track Controls ---
     btnSubTrack.addEventListener('click', () => {
         const tracks = player.textTracks;
         if (!tracks || tracks.length === 0) {
@@ -1418,6 +1473,12 @@
     // File Inputs
     btnAddMedia.onclick = () => fileInput.click();
     fileInput.onchange = (e) => loadFiles(e.target.files);
+    
+    btnAddFolder.onclick = () => folderInput.click();
+    folderInput.onchange = (e) => loadFiles(e.target.files);
+
+    btnClearPlaylist.onclick = () => clearPlaylist();
+
     btnLoadSubtitle.onclick = () => subtitleInput.click();
 
     // Drag and Drop
@@ -1431,8 +1492,20 @@
     playlistSidebar.addEventListener('drop', (e) => {
         e.preventDefault();
         playlistSidebar.classList.remove('dragover');
-        if (e.dataTransfer.files.length > 0) {
-            loadFiles(e.dataTransfer.files);
+        
+        let droppedFiles = [];
+        if (e.dataTransfer.items) {
+            for (let i = 0; i < e.dataTransfer.items.length; i++) {
+                if (e.dataTransfer.items[i].kind === 'file') {
+                    droppedFiles.push(e.dataTransfer.items[i].getAsFile());
+                }
+            }
+        } else {
+            droppedFiles = Array.from(e.dataTransfer.files);
+        }
+        
+        if (droppedFiles.length > 0) {
+            loadFiles(droppedFiles);
         }
     });
 
